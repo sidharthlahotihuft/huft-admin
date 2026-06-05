@@ -338,13 +338,19 @@ export default function ThemeManagerPage() {
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   async function saveAssignment(themeId: string) {
-    const { error } = await supabase.from('theme_assignments').upsert({
+    const { error: delError } = await supabase
+      .from('theme_assignments')
+      .delete()
+      .eq('theme_id', themeId)
+    if (delError) throw delError
+
+    const { error: insError } = await supabase.from('theme_assignments').insert({
       theme_id: themeId,
       scope:    assignScope,
       region:   assignScope === 'region' ? assignRegions.join(',') || null : null,
       store_id: assignScope === 'store'  ? assignStoreId || null   : null,
-    }, { onConflict: 'theme_id' })
-    if (error) throw error
+    })
+    if (insError) throw insError
   }
 
   async function handleSave(e: React.FormEvent) {
