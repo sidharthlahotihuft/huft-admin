@@ -48,12 +48,13 @@ type Submission = {
   theme: { id: string; title: string; brief_text: string } | null
 }
 
-type StoreMin   = { id: string; name: string; trainer_id: string | null; trainer_name: string | null }
+type StoreMin   = { id: string; name: string; region: string | null; trainer_id: string | null; trainer_name: string | null }
 type TrainerMin = { id: string; name: string }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ACCENT = '#E8642C'
+const ACCENT   = '#E8642C'
+const REGIONS  = ['Mumbai', 'Delhi', 'Delhi NCR', 'Hyderabad', 'Bangalore']
 
 const STATUS_TABS = [
   { key: 'all',         label: 'All' },
@@ -138,7 +139,7 @@ function useStores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('stores')
-        .select('id, name, trainer_id, trainer_name')
+        .select('id, name, region, trainer_id, trainer_name')
         .order('name')
       if (error) throw error
       return (data ?? []) as StoreMin[]
@@ -202,6 +203,7 @@ export default function RoleplayReviewPage() {
   const [search, setSearch]               = useState('')
   const [storeFilter, setStoreFilter]     = useState('all')
   const [trainerFilter, setTrainerFilter] = useState('all')
+  const [regionFilter, setRegionFilter]   = useState('all')
 
   // ── Right panel ───────────────────────────────────────────────────────────
   const [selectedId, setSelectedId]       = useState<string | null>(null)
@@ -255,8 +257,14 @@ export default function RoleplayReviewPage() {
     return new Set(stores.filter((s) => s.trainer_id === trainerFilter).map((s) => s.id))
   }, [stores, trainerFilter])
 
+  // Fast store lookup by id (used for region matching on submissions)
+  const storeById = useMemo(
+    () => new Map(stores.map((s) => [s.id, s])),
+    [stores],
+  )
+
   // Store dropdown only shows stores the current user is allowed to see,
-  // further narrowed by the trainer filter if active
+  // further narrowed by trainer + region filters if active
   const visibleStores = useMemo(() => {
     let list = assignedStoreIds
       ? stores.filter((s) => assignedStoreIds.has(s.id))
@@ -264,11 +272,11 @@ export default function RoleplayReviewPage() {
     if (trainerFilterStoreIds) {
       list = list.filter((s) => trainerFilterStoreIds.has(s.id))
     }
+    if (regionFilter !== 'all') {
+      list = list.filter((s) => s.region === regionFilter)
+    }
     return list
-  }, [stores, assignedStoreIds, trainerFilterStoreIds])
-
-  const canSeeTrainerFilter =
-    currentUserRole === 'training_admin' || currentUserRole === 'erp_admin'
+  }, [stores, assignedStoreIds, trainerFilterStoreIds, regionFilter])
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = submissions.filter((s) => {
@@ -277,11 +285,13 @@ export default function RoleplayReviewPage() {
     const matchStore         = storeFilter === 'all' || s.store_id === storeFilter
     const matchAutoScope     = !assignedStoreIds || assignedStoreIds.has(s.store_id)
     const matchTrainerFilter = !trainerFilterStoreIds || trainerFilterStoreIds.has(s.store_id)
+    const matchRegion        = regionFilter === 'all' ||
+      storeById.get(s.store_id)?.region === regionFilter
     const matchSearch        = !q ||
       (s.submitter_name ?? s.staff?.name ?? '').toLowerCase().includes(q) ||
       (s.store?.name ?? '').toLowerCase().includes(q) ||
       (s.theme?.title ?? '').toLowerCase().includes(q)
-    return matchStatus && matchStore && matchAutoScope && matchTrainerFilter && matchSearch
+    return matchStatus && matchStore && matchAutoScope && matchTrainerFilter && matchRegion && matchSearch
   })
 
   const selected          = submissions.find((s) => s.id === selectedId) ?? null
@@ -443,9 +453,9 @@ export default function RoleplayReviewPage() {
             </div>
           </div>
 
-          {/* Search + store + trainer filters */}
-          <div className="flex flex-shrink-0 gap-2">
-            <div className="relative flex-1">
+          {/* Search + trainer + store + region filters */}
+          <div className="flex flex-shrink-0 flex-wrap gap-2">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -454,7 +464,7 @@ export default function RoleplayReviewPage() {
                 className="pl-8 text-xs"
               />
             </div>
-            {canSeeTrainerFilter && trainers.length > 0 && (
+            {trainers.length > 0 && (
               <Select value={trainerFilter} onValueChange={(v) => { setTrainerFilter(v); setStoreFilter('all') }}>
                 <SelectTrigger className="w-36 text-xs">
                   <SelectValue placeholder="All Trainers" />
@@ -466,12 +476,21 @@ export default function RoleplayReviewPage() {
               </Select>
             )}
             <Select value={storeFilter} onValueChange={setStoreFilter}>
-              <SelectTrigger className="w-40 text-xs">
+              <SelectTrigger className="w-36 text-xs">
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stores</SelectItem>
                 {visibleStores.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={regionFilter} onValueChange={(v) => { setRegionFilter(v); setStoreFilter('all') }}>
+              <SelectTrigger className="w-36 text-xs">
+                <SelectValue placeholder="All Regions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Regions</SelectItem>
+                {REGIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
