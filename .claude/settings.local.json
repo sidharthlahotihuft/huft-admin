@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadcn@latest *)",
+      "Bash(npm_config_cache=/tmp/npm-cache-sidh npx shadcn@latest *)",
+      "Bash(npm_config_cache=/tmp/npm-cache-sidh npx *)",
+      "Bash(npm_config_cache=/tmp/npm-cache-sidh npm view shadcn versions --json)",
+      "Bash(python3 -c \"import json,sys; versions=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(versions[-20:]\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; versions=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(versions[:30]\\)\\)\")",
+      "Bash(npm_config_cache=/tmp/npm-cache-sidh npm view *)",
+      "Bash(npm_config_cache=/tmp/npm-cache-sidh npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(sed -n '950,955p' /Users/sidharthlahoti/Desktop/huft_admin/src/pages/erp/ReorderSettingsPage.tsx)",
+      "Bash(sed -n '315,320p' /Users/sidharthlahoti/Desktop/huft_admin/src/pages/erp/UploadHistoryPage.tsx)",
+      "Bash(sed -n '175,180p' /Users/sidharthlahoti/Desktop/huft_admin/src/pages/erp/StoresPage.tsx)",
+      "Bash(sed -n '5,10p' /Users/sidharthlahoti/Desktop/huft_admin/src/pages/erp/StaffPage.tsx)",
+      "Bash(xargs cat)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
+      "Bash(grep -n \"const { data: stores = \\\\[\\\\], isLoading\\\\|const { data: staff\\\\|const { data: tasks\\\\|const accent\\\\|const today\" /Users/sidharthlahoti/Desktop/huft_admin/src/pages/shared/StoresPage.tsx)"
+    ]
+  }
+}
