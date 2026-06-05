@@ -107,7 +107,7 @@ function useSubmissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roleplay_submissions')
-        .select('*, staff:staff(id, name), store:stores(id, name), theme:themes(id, title, brief_text)')
+        .select('*, submitter_name, staff:staff(id, name), store:stores(id, name), theme:themes(id, title, brief_text)')
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data ?? []) as unknown as Submission[]
@@ -278,7 +278,7 @@ export default function RoleplayReviewPage() {
     const matchAutoScope     = !assignedStoreIds || assignedStoreIds.has(s.store_id)
     const matchTrainerFilter = !trainerFilterStoreIds || trainerFilterStoreIds.has(s.store_id)
     const matchSearch        = !q ||
-      (s.staff?.name ?? '').toLowerCase().includes(q) ||
+      (s.submitter_name ?? s.staff?.name ?? '').toLowerCase().includes(q) ||
       (s.store?.name ?? '').toLowerCase().includes(q) ||
       (s.theme?.title ?? '').toLowerCase().includes(q)
     return matchStatus && matchStore && matchAutoScope && matchTrainerFilter && matchSearch
@@ -518,7 +518,7 @@ export default function RoleplayReviewPage() {
                         )}
                       >
                         <td className="px-4 py-2.5 font-medium text-gray-900">
-                          {sub.staff?.name ?? '–'}
+                          {sub.submitter_name ?? sub.staff?.name ?? '–'}
                         </td>
                         <td className="px-3 py-2.5 text-muted-foreground">
                           {sub.store?.name ?? '–'}
@@ -567,10 +567,24 @@ export default function RoleplayReviewPage() {
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
                       style={{ backgroundColor: ACCENT }}
                     >
-                      {initials(selected.staff?.name)}
+                      {initials(selected.submitter_name ?? selected.staff?.name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900">{selected.staff?.name ?? '–'}</p>
+                      {selected.submitter_name ? (
+                        <div className="mb-0.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Submitted by
+                          </p>
+                          <p className="font-semibold text-gray-900">{selected.submitter_name}</p>
+                          {selected.staff?.name && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Account: {selected.staff.name}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="font-semibold text-gray-900">{selected.staff?.name ?? '–'}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {selected.store?.name ?? '–'} · {fmtDateFull(selected.created_at)}
                       </p>
@@ -656,6 +670,12 @@ export default function RoleplayReviewPage() {
                   {/* Overridden display (not in edit mode) */}
                   {selected.score_overridden && !overrideExpanded && (
                     <div className="space-y-3">
+                      {(selected.submitter_name ?? selected.staff?.name) && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-gray-700">Submitted by:</span>{' '}
+                          {selected.submitter_name ?? selected.staff?.name}
+                        </p>
+                      )}
                       <div className="flex items-center gap-4">
                         <ScoreRing score={selected.trainer_score!} />
                         <div>
@@ -696,6 +716,12 @@ export default function RoleplayReviewPage() {
                   {/* Normal AI score display */}
                   {!selected.score_overridden && selected.ai_score && (
                     <div className="space-y-4">
+                      {(selected.submitter_name ?? selected.staff?.name) && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-gray-700">Submitted by:</span>{' '}
+                          {selected.submitter_name ?? selected.staff?.name}
+                        </p>
+                      )}
                       <div className="flex items-center gap-4">
                         <ScoreRing score={selected.ai_score.overall} />
                         <div>
