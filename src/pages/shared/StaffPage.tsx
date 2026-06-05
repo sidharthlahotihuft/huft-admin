@@ -563,6 +563,12 @@ export default function StaffPage() {
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const [bulkOpen, setBulkOpen] = useState(false)
 
+  // ── Store Login dialog ────────────────────────────────────────────────────
+  const [storeLoginOpen, setStoreLoginOpen]       = useState(false)
+  const [storeLoginForm, setStoreLoginForm]       = useState({ name: '', email: '', password: '', store_id: '' })
+  const [showStoreLoginPw, setShowStoreLoginPw]   = useState(false)
+  const [addingStoreLogin, setAddingStoreLogin]   = useState(false)
+
   // ── Edit sheet ────────────────────────────────────────────────────────────
   const [editOpen, setEditOpen]             = useState(false)
   const [editStaff, setEditStaff]           = useState<StaffRow | null>(null)
@@ -640,6 +646,47 @@ export default function StaffPage() {
 
   function closeAddDialog() {
     setAddOpen(false); setAddForm(EMPTY_ADD_FORM); setShowAddPw(false)
+  }
+
+  function closeStoreLoginDialog() {
+    setStoreLoginOpen(false)
+    setStoreLoginForm({ name: '', email: '', password: '', store_id: '' })
+    setShowStoreLoginPw(false)
+  }
+
+  async function handleStoreLoginSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const { name, email, password, store_id } = storeLoginForm
+    if (!name.trim() || !email.trim() || password.length < 8 || !store_id) return
+    setAddingStoreLogin(true)
+    try {
+      const body = {
+        name:           name.trim(),
+        email:          email.trim().toLowerCase(),
+        password,
+        store_id,
+        role:           'staff',
+        access_level:   'single_store',
+        is_store_login: true,
+      }
+      const { data, error } = await supabase.functions.invoke('create-staff-user', { body })
+      if (error) {
+        console.error('create-staff-user invoke error:', error)
+        throw error
+      }
+      if (data?.error) {
+        console.error('create-staff-user response error:', data.error)
+        throw new Error(String(data.error))
+      }
+      invalidateStaff()
+      closeStoreLoginDialog()
+      toast.success('Store login account created')
+    } catch (e) {
+      console.error('handleStoreLoginSubmit failed:', e)
+      toast.error(`Failed to create store login: ${(e as Error).message}`)
+    } finally {
+      setAddingStoreLogin(false)
+    }
   }
 
   function openEdit(s: StaffRow) {
@@ -751,6 +798,9 @@ export default function StaffPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-1.5">
             <Upload className="h-4 w-4" /> Bulk Upload
+          </Button>
+          <Button variant="outline" onClick={() => setStoreLoginOpen(true)} className="gap-1.5">
+            <StoreIcon className="h-4 w-4" /> Add Store Login
           </Button>
           <Button onClick={() => setAddOpen(true)}
             className="gap-1.5 text-white hover:opacity-90" style={{ backgroundColor: accent }}>
@@ -875,6 +925,86 @@ export default function StaffPage() {
         stores={stores}
         onImported={invalidateStaff}
       />
+
+      {/* ── Store Login Dialog ─────────────────────────────────────────── */}
+      <Dialog open={storeLoginOpen} onOpenChange={(open) => { if (!open) closeStoreLoginDialog() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Create Store Login</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleStoreLoginSubmit} className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Store <span className="text-red-500">*</span></Label>
+              <Select value={storeLoginForm.store_id} onValueChange={(v) => setStoreLoginForm((f) => ({ ...f, store_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select store" /></SelectTrigger>
+                <SelectContent>
+                  {stores.map((st) => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Name <span className="text-red-500">*</span></Label>
+              <Input
+                value={storeLoginForm.name}
+                onChange={(e) => setStoreLoginForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. HUFT Saket Store"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Email <span className="text-red-500">*</span></Label>
+              <Input
+                value={storeLoginForm.email}
+                onChange={(e) => setStoreLoginForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="store.saket@headsupfortails.com"
+                type="email"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Password <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <Input
+                  value={storeLoginForm.password}
+                  onChange={(e) => setStoreLoginForm((f) => ({ ...f, password: e.target.value }))}
+                  type={showStoreLoginPw ? 'text' : 'password'}
+                  placeholder="Min 8 characters"
+                  required
+                  className="pr-9"
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowStoreLoginPw((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-gray-700">
+                  {showStoreLoginPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+              {storeLoginForm.password.length > 0 && storeLoginForm.password.length < 8 && (
+                <p className="text-[11px] text-red-500">Must be at least 8 characters</p>
+              )}
+            </div>
+            <DialogFooter className="pt-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline" size="sm">Cancel</Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={
+                  addingStoreLogin ||
+                  !storeLoginForm.name.trim() ||
+                  !storeLoginForm.email.trim() ||
+                  storeLoginForm.password.length < 8 ||
+                  !storeLoginForm.store_id
+                }
+                className="text-white hover:opacity-90"
+                style={{ backgroundColor: accent }}
+              >
+                {addingStoreLogin ? 'Creating…' : 'Create Store Login'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add Staff Dialog ────────────────────────────────────────────── */}
       <Dialog open={addOpen} onOpenChange={(open) => { if (!open) closeAddDialog() }}>
