@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     // ── 1. Fetch submission ───────────────────────────────────────────────────
     const { data: sub, error: subErr } = await supabase
       .from('roleplay_submissions')
-      .select('*, staff:staff(name), store:stores(name), theme:themes(title, brief_text)')
+      .select('*, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name), theme:themes!roleplay_submissions_theme_id_fkey(title, brief_text)')
       .eq('id', submission_id)
       .single()
     if (subErr || !sub) return jsonError(`Submission not found: ${subErr?.message}`, 404)
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
 
     // ── 4. Call Gemini ────────────────────────────────────────────────────────
     const model = genAI.getGenerativeModel({
-      model:          'gemini-1.5-flash',
+      model:          'gemini-2.5-flash-lite',
       safetySettings: SAFETY,
     })
 

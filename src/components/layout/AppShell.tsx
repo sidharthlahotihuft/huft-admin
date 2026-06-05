@@ -32,19 +32,29 @@ export default function AppShell({ portal }: AppShellProps) {
         return
       }
 
-      const { data: staff } = await supabase
+      const { data: staffData, error: staffError } = await supabase
         .from('staff')
-        .select('*, store:stores(*)')
+        .select('*')
         .eq('id', session.user.id)
         .single()
 
-     if (!staff) {
+      if (!staffData || staffError) {
         navigate(portal.loginPath, { replace: true })
         return
       }
 
+      let store = null
+      if (staffData.store_id) {
+        const { data: storeData } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('id', staffData.store_id)
+          .single()
+        store = storeData
+      }
+
       if (!cancelled) {
-        setUser(staff as Staff)
+        setUser({ ...staffData, store: store ?? undefined } as Staff)
         setAuthChecked(true)
       }
     }

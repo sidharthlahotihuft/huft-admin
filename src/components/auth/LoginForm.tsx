@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -26,22 +26,35 @@ export default function LoginForm({ portal }: LoginFormProps) {
   const navigate = useNavigate()
   const { signIn, loading, error, accessDenied } = useAuth(portal.allowedRoles)
   const [showPassword, setShowPassword] = useState(false)
+  const [checking, setChecking] = useState(true)
+  const hasChecked = useRef(false)
 
-  // Redirect if already authenticated with an allowed role
+  // Redirect if already authenticated with an allowed role — runs once on mount
   useEffect(() => {
+    if (hasChecked.current) return
+    hasChecked.current = true
+
+    let cancelled = false
     async function check() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      const { data: staff } = await supabase
-        .from('staff')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-      if (staff && portal.allowedRoles.includes(staff.role)) {
-        navigate(portal.overviewPath, { replace: true })
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (cancelled || !session) return
+        const { data: staff } = await supabase
+          .from('staff')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        if (cancelled) return
+        if (staff && portal.allowedRoles.includes(staff.role)) {
+          navigate(portal.overviewPath, { replace: true })
+          return
+        }
+      } finally {
+        if (!cancelled) setChecking(false)
       }
     }
     check()
+    return () => { cancelled = true }
   }, [navigate, portal])
 
   const { register, handleSubmit, formState: { errors } } = useForm<Fields>({
@@ -54,6 +67,14 @@ export default function LoginForm({ portal }: LoginFormProps) {
   }
 
   const roleList = portal.allowedRoles.join(' or ')
+
+  if (checking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-sm text-gray-400">Loading…</div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
