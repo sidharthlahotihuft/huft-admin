@@ -107,7 +107,7 @@ function useSubmissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roleplay_submissions')
-        .select('*, submitter_name, staff:staff(id, name), store:stores(id, name), theme:themes(id, title, brief_text)')
+        .select('*, submitter_name, staff:staff!roleplay_submissions_staff_id_fkey(id, name), store:stores!roleplay_submissions_store_id_fkey(id, name), theme:themes!roleplay_submissions_theme_id_fkey(id, title, brief_text)')
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data ?? []) as unknown as Submission[]
