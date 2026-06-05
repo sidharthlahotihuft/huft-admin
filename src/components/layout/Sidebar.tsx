@@ -10,7 +10,7 @@ interface SidebarProps {
 
 export default function Sidebar({ portal }: SidebarProps) {
   const navigate = useNavigate()
-  const { user } = useUser()
+  const { user } = useUser() ?? {}
 
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)

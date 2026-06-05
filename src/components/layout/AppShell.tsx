@@ -81,7 +81,7 @@ export default function AppShell({ portal }: AppShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar user={user} portal={portal} />
+      <Sidebar portal={portal} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* ── Top header ───────────────────────────────────────────────────── */}
@@ -101,7 +101,7 @@ export default function AppShell({ portal }: AppShellProps) {
 
         {/* ── Page content ─────────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto px-6 pb-6 pt-8">
-          <Outlet />
+          <Outlet context={{ user }} />
         </main>
       </div>
     </div>

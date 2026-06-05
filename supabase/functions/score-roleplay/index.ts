@@ -10,7 +10,8 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
 
-const genAI = new GoogleGenerativeAI(Deno.env.get('GEMINI_API_KEY')!)
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
 
 const SAFETY = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT,        threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -140,7 +141,21 @@ Deno.serve(async (req) => {
     // ── 3. Build prompt ───────────────────────────────────────────────────────
     const prompt = buildPrompt(submission, calibrationExamples)
 
-    // ── 4. Call Gemini ────────────────────────────────────────────────────────
+    // ── 4. Download video and upload to Gemini File API ───────────────────────
+    const storagePath = extractStoragePath(submission.video_url, 'roleplay-videos')
+    const { data: { publicUrl } } = supabase.storage
+      .from('roleplay-videos')
+      .getPublicUrl(storagePath)
+
+    const videoResponse = await fetch(publicUrl)
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`)
+    }
+    const videoBuffer = await videoResponse.arrayBuffer()
+    const mimeType    = guessMimeType(storagePath)
+    const fileUri     = await uploadToGeminiFileApi(videoBuffer, mimeType)
+
+    // ── 5. Call Gemini ────────────────────────────────────────────────────────
     const model = genAI.getGenerativeModel({
       model:          'gemini-2.5-flash-lite',
       safetySettings: SAFETY,
@@ -150,8 +165,8 @@ Deno.serve(async (req) => {
       { text: prompt },
       {
         fileData: {
-          mimeType: guessMimeType(submission.video_url),
-          fileUri:  submission.video_url,
+          mimeType,
+          fileUri,
         },
       },
     ])
@@ -167,7 +182,7 @@ Deno.serve(async (req) => {
       throw new Error('Gemini returned unexpected shape')
     }
 
-    // ── 5. Persist score ──────────────────────────────────────────────────────
+    // ── 6. Persist score ──────────────────────────────────────────────────────
     const { error: updateErr } = await supabase
       .from('roleplay_submissions')
       .update({
@@ -186,6 +201,105 @@ Deno.serve(async (req) => {
 })
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Uploads a video buffer to the Gemini File API using multipart upload,
+ * waits for it to finish processing, and returns the file URI.
+ */
+async function uploadToGeminiFileApi(
+  buffer:   ArrayBuffer,
+  mimeType: string,
+): Promise<string> {
+  const boundary = `gemini_${crypto.randomUUID().replace(/-/g, '')}`
+  const encoder  = new TextEncoder()
+
+  // Multipart body: JSON metadata part + binary video part
+  const head = encoder.encode(
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=utf-8\r\n\r\n` +
+    `${JSON.stringify({ file: { display_name: 'roleplay' } })}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`,
+  )
+  const tail = encoder.encode(`\r\n--${boundary}--`)
+
+  const body = new Uint8Array(head.length + buffer.byteLength + tail.length)
+  body.set(head)
+  body.set(new Uint8Array(buffer), head.length)
+  body.set(tail, head.length + buffer.byteLength)
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
+    {
+      method:  'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'multipart',
+        'Content-Type':           `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Gemini File API upload failed (${res.status}): ${text}`)
+  }
+
+  const data    = await res.json() as { file?: { uri?: string; name?: string } }
+  const fileUri = data.file?.uri
+  const name    = data.file?.name
+
+  if (!fileUri || !name) throw new Error('Gemini File API did not return a file URI')
+
+  // Video files are processed asynchronously — wait until ACTIVE before use
+  await waitForGeminiFileActive(name)
+
+  return fileUri
+}
+
+/**
+ * Polls the Gemini File API until the uploaded file transitions
+ * from PROCESSING → ACTIVE (or throws on FAILED / timeout).
+ */
+async function waitForGeminiFileActive(name: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const res  = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${name}?key=${GEMINI_API_KEY}`,
+    )
+    const data = await res.json() as {
+      state?: string
+      error?: { message?: string }
+    }
+
+    if (data.state === 'ACTIVE') return
+    if (data.state === 'FAILED') {
+      throw new Error(`Gemini file processing failed: ${data.error?.message ?? 'unknown'}`)
+    }
+    // PROCESSING — back off 3 s and retry (max 60 s total)
+    await new Promise((resolve) => setTimeout(resolve, 3_000))
+  }
+  throw new Error('Gemini file processing timed out after 60 s')
+}
+
+/**
+ * Extracts the storage object path from any Supabase storage URL shape:
+ *   - Public URL:  .../object/public/{bucket}/{path}
+ *   - Signed URL:  .../object/sign/{bucket}/{path}?token=...
+ *   - Raw path:    {path}  (returned as-is)
+ */
+function extractStoragePath(videoUrl: string, bucket: string): string {
+  if (!videoUrl.startsWith('http')) return videoUrl  // already a raw path
+
+  for (const segment of [`/object/public/${bucket}/`, `/object/sign/${bucket}/`]) {
+    const idx = videoUrl.indexOf(segment)
+    if (idx !== -1) {
+      return decodeURIComponent(videoUrl.slice(idx + segment.length).split('?')[0])
+    }
+  }
+
+  // Fallback: strip query string and return whatever is after the last known prefix
+  return videoUrl.split('?')[0]
+}
 
 function guessMimeType(url: string): string {
   if (url.includes('.mp4'))  return 'video/mp4'
