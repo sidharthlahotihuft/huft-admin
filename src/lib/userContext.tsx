@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import type { Staff } from '@/types'
 
@@ -12,6 +12,7 @@ const UserContext = createContext<UserContextValue>({ user: null, loading: true 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Staff | null>(null)
   const [loading, setLoading] = useState(true)
+  const sessionChecked = useRef(false)
 
   async function loadUser(userId: string) {
     const { data, error } = await supabase
@@ -44,13 +45,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
       } else {
         setLoading(false)
       }
+      sessionChecked.current = true
     })
 
-    // Keep in sync with Supabase auth events (login / logout / token refresh)
+    // Keep in sync with Supabase auth events (login / logout / token refresh).
+    // Guard with sessionChecked so an early null event from onAuthStateChange
+    // cannot set loading=false before getSession() has finished.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadUser(session.user.id)
-      } else {
+      } else if (sessionChecked.current) {
         setUser(null)
         setLoading(false)
       }
