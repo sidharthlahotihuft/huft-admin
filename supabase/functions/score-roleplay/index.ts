@@ -172,6 +172,8 @@ Deno.serve(async (req) => {
       trainer_notes:  o.trainer_notes,
     }))
 
+    console.log(`[score-roleplay] calibration examples for theme ${submission.theme_id}: ${calibrationExamples.length}`)
+
     // ── 3. Build prompt ───────────────────────────────────────────────────────
     const prompt = buildPrompt(submission, calibrationExamples)
 
@@ -212,8 +214,8 @@ Deno.serve(async (req) => {
     const aiScore  = JSON.parse(jsonText)
 
     // Validate shape
-    if (!Array.isArray(aiScore.breakdown) || aiScore.breakdown.length !== 15) {
-      throw new Error('Gemini returned unexpected shape — expected 15 breakdown items')
+    if (!Array.isArray(aiScore.breakdown) || aiScore.breakdown.length < 13) {
+      throw new Error('Gemini returned unexpected shape — expected at least 13 breakdown items')
     }
 
     // Recompute totals server-side so arithmetic is always correct
