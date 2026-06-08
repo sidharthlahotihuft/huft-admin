@@ -515,6 +515,7 @@ export default function RoleplayReviewPage() {
                 <thead className="sticky top-0 bg-gray-50 shadow-[0_1px_0_#f3f4f6]">
                   <tr>
                     <th className="px-4 py-2.5 text-left font-medium text-gray-500">Staff</th>
+                    <th className="px-3 py-2.5 text-left font-medium text-gray-500">Submitted by</th>
                     <th className="px-3 py-2.5 text-left font-medium text-gray-500">Store</th>
                     <th className="px-3 py-2.5 text-left font-medium text-gray-500">Theme</th>
                     <th className="px-3 py-2.5 text-left font-medium text-gray-500">Date</th>
@@ -537,6 +538,9 @@ export default function RoleplayReviewPage() {
                         )}
                       >
                         <td className="px-4 py-2.5 font-medium text-gray-900">
+                          {sub.staff?.name ?? '–'}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
                           {sub.submitter_name ?? sub.staff?.name ?? '–'}
                         </td>
                         <td className="px-3 py-2.5 text-muted-foreground">
@@ -589,20 +593,14 @@ export default function RoleplayReviewPage() {
                       {initials(selected.submitter_name ?? selected.staff?.name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      {selected.submitter_name ? (
-                        <div className="mb-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Submitted by
-                          </p>
-                          <p className="font-semibold text-gray-900">{selected.submitter_name}</p>
-                          {selected.staff?.name && (
-                            <p className="text-[11px] text-muted-foreground">
-                              Account: {selected.staff.name}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="font-semibold text-gray-900">{selected.staff?.name ?? '–'}</p>
+                      <p className="text-xs font-medium text-muted-foreground">Submitted by</p>
+                      <p className="text-base font-bold text-gray-900 leading-tight">
+                        {selected.submitter_name ?? selected.staff?.name ?? '–'}
+                      </p>
+                      {selected.submitter_name && selected.staff?.name && selected.submitter_name !== selected.staff.name && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Account: {selected.staff.name}
+                        </p>
                       )}
                       <p className="text-xs text-muted-foreground">
                         {selected.store?.name ?? '–'} · {fmtDateFull(selected.created_at)}
