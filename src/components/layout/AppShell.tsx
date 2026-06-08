@@ -19,10 +19,15 @@ export default function AppShell({ portal }: AppShellProps) {
     document.title = `${portal.name} — HUFT`
   }, [portal.name])
 
-  // Only redirect once the session check is complete and there is no user
+  // Only redirect once the session check is complete and there is no user.
+  // The 500 ms delay gives Supabase time to restore the session from localStorage
+  // before the redirect fires on a hard refresh.
   useEffect(() => {
     if (!loading && !user) {
-      navigate(portal.loginPath, { replace: true })
+      const timer = setTimeout(() => {
+        navigate(portal.loginPath, { replace: true })
+      }, 500)
+      return () => clearTimeout(timer)
     }
   }, [loading, user, navigate, portal.loginPath])
 
