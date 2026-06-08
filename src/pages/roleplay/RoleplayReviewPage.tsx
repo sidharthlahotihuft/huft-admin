@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Video, Search, ChevronDown, ChevronUp, Play, ThumbsUp,
@@ -234,6 +234,10 @@ export default function RoleplayReviewPage() {
   const [rejecting, setRejecting] = useState(false)
   const [scoring, setScoring]     = useState(false)
 
+  // Tracks submission IDs already dispatched for auto-scoring so we don't
+  // re-invoke on subsequent re-renders / refetches.
+  const scoringInFlight = useRef(new Set<string>())
+
   // ── Current user ──────────────────────────────────────────────────────────
   const [currentUserId, setCurrentUserId]     = useState<string | null>(null)
   const [currentUserName, setCurrentUserName] = useState<string | null>(null)
@@ -336,6 +340,29 @@ export default function RoleplayReviewPage() {
     queryClient.invalidateQueries({ queryKey: ['roleplay_submissions_review'] })
     queryClient.invalidateQueries({ queryKey: ['roleplay_submissions', 'all'] })
   }
+
+  // Auto-score any submission that is still in 'submitted' state.
+  // Uses a ref-based set so each ID is only dispatched once per page load,
+  // preventing re-invocation on the refetch that follows scoring completion.
+  useEffect(() => {
+    const toScore = submissions.filter(
+      (s) => s.status === 'submitted' && !scoringInFlight.current.has(s.id),
+    )
+    if (toScore.length === 0) return
+
+    toScore.forEach((s) => scoringInFlight.current.add(s.id))
+
+    Promise.all(
+      toScore.map((s) =>
+        supabase.functions.invoke('score-roleplay', { body: { submission_id: s.id } }),
+      ),
+    ).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['roleplay_submissions_review'] })
+      queryClient.invalidateQueries({ queryKey: ['roleplay_submissions', 'all'] })
+    }).catch(() => {
+      // Scoring failures are silent here; trainers can re-score manually from the panel.
+    })
+  }, [submissions, queryClient])
 
   async function handleApprove() {
     if (!selectedId) return
