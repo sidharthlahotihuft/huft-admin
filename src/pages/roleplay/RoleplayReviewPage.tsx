@@ -58,7 +58,6 @@ const REGIONS  = ['Mumbai', 'Delhi', 'Delhi NCR', 'Hyderabad', 'Bangalore']
 
 const STATUS_TABS = [
   { key: 'all',         label: 'All' },
-  { key: 'submitted',   label: 'Submitted' },
   { key: 'ai_reviewed', label: 'AI Reviewed' },
   { key: 'approved',    label: 'Approved' },
   { key: 'rejected',    label: 'Rejected' },
@@ -89,15 +88,22 @@ function initials(name: string | null | undefined) {
 }
 
 function scoreColor(n: number) {
-  if (n >= 80) return 'text-emerald-600'
+  if (n >= 75) return 'text-emerald-600'
   if (n >= 60) return 'text-amber-600'
   return 'text-red-600'
 }
 
 function scoreStroke(n: number) {
-  if (n >= 80) return '#22c55e'
+  if (n >= 75) return '#22c55e'
   if (n >= 60) return '#f59e0b'
   return '#ef4444'
+}
+
+function scoreGrade(n: number): { letter: string; label: string } {
+  if (n >= 90) return { letter: 'A', label: 'Excellent' }
+  if (n >= 75) return { letter: 'B', label: 'Good' }
+  if (n >= 60) return { letter: 'C', label: 'Needs Improvement' }
+  return { letter: 'D', label: 'Poor' }
 }
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -163,7 +169,7 @@ function ScoreRing({ score, size = 88 }: { score: number; size?: number }) {
           strokeDasharray={`${fill} ${circ - fill}`}
           strokeLinecap="round" />
       </svg>
-      <span className={cn('text-xl font-bold', scoreColor(score))}>{score}</span>
+      <span className={cn('text-2xl font-bold', scoreColor(score))}>{scoreGrade(score).letter}</span>
     </div>
   )
 }
@@ -178,15 +184,17 @@ function StatusBadge({ status }: { status: string }) {
 // ── ScoreCell ─────────────────────────────────────────────────────────────────
 
 function ScoreCell({ sub }: { sub: Submission }) {
-  if (sub.score_overridden && sub.trainer_score != null) {
-    return (
-      <span className={cn('text-sm font-semibold', scoreColor(sub.trainer_score))}>
-        {sub.trainer_score}
-      </span>
-    )
-  }
-  if (!sub.ai_score) return <span className="text-xs text-muted-foreground">Pending</span>
-  return <span className={cn('text-sm font-semibold', scoreColor(sub.ai_score?.overall ?? 0))}>{sub.ai_score?.overall ?? '–'}</span>
+  const score = sub.score_overridden && sub.trainer_score != null
+    ? sub.trainer_score
+    : sub.ai_score?.overall ?? null
+  if (score == null) return <span className="text-xs text-muted-foreground">Pending</span>
+  const grade = scoreGrade(score)
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className={cn('text-sm font-bold', scoreColor(score))}>{grade.letter}</span>
+      <span className="text-[10px] text-muted-foreground">{score}/100</span>
+    </div>
+  )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -279,7 +287,7 @@ export default function RoleplayReviewPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = submissions.filter((s) => {
     const q = search.trim().toLowerCase()
-    const matchStatus        = statusTab === 'all' || s.status === statusTab
+    const matchStatus        = statusTab === 'all' ? s.status !== 'submitted' : s.status === statusTab
     const matchStore         = storeFilter === 'all' || s.store_id === storeFilter
     const matchAutoScope     = !assignedStoreIds || assignedStoreIds.has(s.store_id)
     const matchTrainerFilter = !trainerFilterStoreIds || trainerFilterStoreIds.has(s.store_id)
@@ -310,7 +318,7 @@ export default function RoleplayReviewPage() {
       setOverrideScore(0)
       setOverrideFeedback('')
     }
-    setOverrideBreakdown(sub?.ai_score?.breakdown ?? [])
+    setOverrideBreakdown(sub?.ai_score?.invalid ? [] : (sub?.ai_score?.breakdown ?? []))
   }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-compute overall from breakdown whenever dimension scores change
@@ -706,11 +714,13 @@ export default function RoleplayReviewPage() {
                       <div className="flex items-center gap-4">
                         <ScoreRing score={selected.trainer_score!} />
                         <div>
-                          <p className="text-xs font-medium text-gray-500">Overall Score</p>
-                          <p className={cn('text-2xl font-bold', scoreColor(selected.trainer_score!))}>
-                            {selected.trainer_score}
-                            <span className="text-base font-normal text-muted-foreground">/100</span>
+                          <p className={cn('text-3xl font-bold leading-none', scoreColor(selected.trainer_score!))}>
+                            {scoreGrade(selected.trainer_score!).letter}
                           </p>
+                          <p className="mt-0.5 text-xs font-medium text-gray-600">
+                            {scoreGrade(selected.trainer_score!).label}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{selected.trainer_score}/100</p>
                         </div>
                       </div>
                       {selected.reviewed_by_name && (
@@ -762,11 +772,13 @@ export default function RoleplayReviewPage() {
                       <div className="flex items-center gap-4">
                         <ScoreRing score={selected.ai_score?.overall ?? 0} />
                         <div>
-                          <p className="text-xs font-medium text-gray-500">Overall Score</p>
-                          <p className={cn('text-2xl font-bold', scoreColor(selected.ai_score?.overall ?? 0))}>
-                            {selected.ai_score?.overall}
-                            <span className="text-base font-normal text-muted-foreground">/100</span>
+                          <p className={cn('text-3xl font-bold leading-none', scoreColor(selected.ai_score?.overall ?? 0))}>
+                            {scoreGrade(selected.ai_score?.overall ?? 0).letter}
                           </p>
+                          <p className="mt-0.5 text-xs font-medium text-gray-600">
+                            {scoreGrade(selected.ai_score?.overall ?? 0).label}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{selected.ai_score?.overall}/100</p>
                         </div>
                       </div>
 
