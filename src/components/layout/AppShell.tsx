@@ -20,13 +20,12 @@ export default function AppShell({ portal }: AppShellProps) {
   }, [portal.name])
 
   // Only redirect once the session check is complete and there is no user.
-  // The 500 ms delay gives Supabase time to restore the session from localStorage
-  // before the redirect fires on a hard refresh.
+  // The 2000 ms delay covers the full auth hydration period on a hard refresh.
   useEffect(() => {
     if (!loading && !user) {
       const timer = setTimeout(() => {
         navigate(portal.loginPath, { replace: true })
-      }, 500)
+      }, 2000)
       return () => clearTimeout(timer)
     }
   }, [loading, user, navigate, portal.loginPath])
@@ -38,8 +37,15 @@ export default function AppShell({ portal }: AppShellProps) {
     s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const pageTitle   = titleize(pageSegments[pageSegments.length - 1] ?? 'overview')
 
-  // Show spinner while session is hydrating OR while navigating away after logout
-  if (loading || !user) {
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-400">Loading…</div>
+      </div>
+    )
+  }
+
+  if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-sm text-gray-400">Loading…</div>
