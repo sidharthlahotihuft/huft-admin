@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
 import {
   BookOpen, Pencil, Trash2, Eye, EyeOff, Zap, Search,
-  CheckCircle2, AlertTriangle, ExternalLink, MapPin,
+  CheckCircle2, AlertTriangle, ExternalLink, MapPin, Download,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -291,6 +292,7 @@ export default function ThemeManagerPage() {
   const [deleteTarget, setDeleteTarget] = useState<Theme | null>(null)
   const [deleting, setDeleting]         = useState(false)
   const [loadingSamples, setLoadingSamples] = useState(false)
+  const [downloadingThemeId, setDownloadingThemeId] = useState<string | null>(null)
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = themes.filter((t) =>
@@ -410,6 +412,74 @@ export default function ThemeManagerPage() {
     } catch (e) {
       toast.error(`Delete failed: ${(e as Error).message}`)
     } finally { setDeleting(false) }
+  }
+
+  const THEME_REPORT_DIMS = [
+    'First Impression', 'Customer Welcome', 'Price Perception', 'Pet Details',
+    'Product & Breed Knowledge', 'Product Demonstration', 'Offers Communication',
+    'Cross Sell/Upsell', 'Query Handling', 'Product Suggestion', 'Impulse Products',
+    'Customer Data Capture', 'Bag Handover & Google Review',
+    'Shopping Basket Bonus', 'Spa Bonus',
+  ]
+
+  async function downloadThemeReport(theme: Theme) {
+    setDownloadingThemeId(theme.id)
+    try {
+      const { data, error } = await supabase
+        .from('roleplay_submissions')
+        .select(
+          'submitter_name, created_at, status, ai_score, rejected_reason,' +
+          'store:stores!roleplay_submissions_store_id_fkey(name)',
+        )
+        .eq('theme_id', theme.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+
+      const rows = (data ?? []).map((sub: Record<string, unknown>) => {
+        const score     = sub.ai_score as Record<string, unknown> | null
+        const reqScore  = score?.required_score as number | undefined
+        const pct       = reqScore != null ? (reqScore / 24) * 100 : null
+        const grade     = pct == null ? '–' : pct >= 80 ? 'A' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D'
+        const breakdown = (score?.breakdown as Array<Record<string, unknown>> | undefined) ?? []
+        const storeObj  = sub.store as Record<string, unknown> | null
+
+        const dimCols: Record<string, string> = {}
+        for (const dim of THEME_REPORT_DIMS) {
+          const found = breakdown.find(
+            (d) => (d.dimension as string)?.toLowerCase() === dim.toLowerCase(),
+          )
+          dimCols[dim] = found ? `${found.score}/${found.max_score ?? '?'}` : '–'
+        }
+
+        const STATUS_LABELS: Record<string, string> = {
+          submitted: 'Submitted', ai_reviewed: 'AI Reviewed',
+          approved: 'Approved', rejected: 'Rejected', invalid: 'Invalid',
+        }
+        return {
+          'Submitter Name': (sub.submitter_name as string | null) ?? '–',
+          'Store': (storeObj?.name as string | null) ?? '–',
+          'Date': sub.created_at
+            ? new Date(sub.created_at as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+            : '–',
+          'Status': STATUS_LABELS[sub.status as string] ?? (sub.status as string),
+          'Overall Grade': grade,
+          ...dimCols,
+          'AI Summary': (score?.summary as string | null) ?? '',
+          'Trainer Notes': (sub.rejected_reason as string | null) ?? '',
+        }
+      })
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Theme Report')
+      const safeName = theme.title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)
+      const date = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `HUFT_Theme_${safeName}_Report_${date}.xlsx`)
+    } catch (e) {
+      toast.error(`Download failed: ${(e as Error).message}`)
+    } finally {
+      setDownloadingThemeId(null)
+    }
   }
 
   async function handleLoadSamples() {
@@ -809,8 +879,17 @@ export default function ThemeManagerPage() {
                           <span className="text-muted-foreground">0</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right" style={{minWidth: '7rem'}}>
+                      <td className="px-4 py-2.5 text-right" style={{minWidth: '9rem'}}>
                         <div className="flex items-center justify-end gap-0.5">
+                          {/* Download report */}
+                          <button
+                            onClick={() => downloadThemeReport(theme)}
+                            disabled={downloadingThemeId === theme.id}
+                            title="Download report"
+                            className="rounded p-1.5 text-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
                           {/* Edit */}
                           <button
                             onClick={() => startEdit(theme)}

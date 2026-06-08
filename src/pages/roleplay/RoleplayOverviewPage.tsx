@@ -126,6 +126,8 @@ export default function RoleplayOverviewPage() {
 
   const [reportStoreId, setReportStoreId] = useState<string>('all')
   const [isDownloading, setIsDownloading] = useState(false)
+  const [trendPeriod, setTrendPeriod] = useState<'weekly' | 'monthly'>('weekly')
+  const [isDownloadingTrend, setIsDownloadingTrend] = useState(false)
 
   async function downloadReport() {
     setIsDownloading(true)
@@ -206,6 +208,89 @@ export default function RoleplayOverviewPage() {
     }
   }
 
+  function downloadTrends() {
+    setIsDownloadingTrend(true)
+    try {
+      const now = new Date()
+      let periodStart: string
+      let periodLabel: string
+      let prevStart: string
+
+      if (trendPeriod === 'weekly') {
+        const day = now.getDay()
+        const mon = new Date(now)
+        mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+        mon.setHours(0, 0, 0, 0)
+        periodStart = mon.toISOString()
+        periodLabel = `Week of ${mon.toISOString().split('T')[0]}`
+        const prevMon = new Date(mon); prevMon.setDate(mon.getDate() - 7)
+        prevStart = prevMon.toISOString()
+      } else {
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        periodStart = firstOfMonth.toISOString()
+        periodLabel = `${now.toLocaleString('en-IN', { month: 'long' })} ${now.getFullYear()}`
+        const prevFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        prevStart = prevFirst.toISOString()
+      }
+
+      const nameMap = new Map(stores.map((s) => [s.id, s.name]))
+      type S = { total: number; a: number; b: number; c: number; d: number; totalPct: number; scored: number; prevTotal: number; prevTotalPct: number; prevScored: number }
+      const byStore = new Map<string, S>()
+
+      for (const sub of submissions) {
+        const isPeriod = sub.created_at >= periodStart
+        const isPrev   = !isPeriod && sub.created_at >= prevStart
+
+        if (!isPeriod && !isPrev) continue
+        if (!byStore.has(sub.store_id))
+          byStore.set(sub.store_id, { total: 0, a: 0, b: 0, c: 0, d: 0, totalPct: 0, scored: 0, prevTotal: 0, prevTotalPct: 0, prevScored: 0 })
+
+        const bk = byStore.get(sub.store_id)!
+        const reqScore = (sub.ai_score as Record<string, unknown> | null)?.required_score as number | undefined
+        const pct = reqScore != null ? (reqScore / 24) * 100 : null
+
+        if (isPeriod) {
+          bk.total++
+          if (pct != null) {
+            bk.totalPct += pct; bk.scored++
+            if (pct >= 80) bk.a++
+            else if (pct >= 60) bk.b++
+            else if (pct >= 50) bk.c++
+            else bk.d++
+          }
+        } else {
+          bk.prevTotal++
+          if (pct != null) { bk.prevTotalPct += pct; bk.prevScored++ }
+        }
+      }
+
+      const rows = Array.from(byStore.entries()).map(([id, c]) => {
+        const avgPct  = c.scored > 0     ? c.totalPct / c.scored         : null
+        const pavgPct = c.prevScored > 0 ? c.prevTotalPct / c.prevScored : null
+        const grade   = avgPct  != null ? (avgPct >= 80 ? 'A' : avgPct >= 60 ? 'B' : avgPct >= 50 ? 'C' : 'D') : '–'
+        const prevGrd = pavgPct != null ? (pavgPct >= 80 ? 'A' : pavgPct >= 60 ? 'B' : pavgPct >= 50 ? 'C' : 'D') : '–'
+        const gradeOrder: Record<string, number> = { A: 4, B: 3, C: 2, D: 1, '–': 0 }
+        const change = gradeOrder[grade] - gradeOrder[prevGrd]
+        return {
+          'Store': nameMap.get(id) ?? id,
+          'Period': periodLabel,
+          'Total Submissions': c.total,
+          'Avg Grade': grade,
+          'Grade A': c.a, 'Grade B': c.b, 'Grade C': c.c, 'Grade D': c.d,
+          'Prev Period Grade': prevGrd,
+          'Grade Change': change > 0 ? `+${change} step` : change < 0 ? `${change} step` : 'Same',
+        }
+      }).sort((a, b) => a.Store.localeCompare(b.Store))
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Roleplay Trends')
+      XLSX.writeFile(wb, `HUFT_Roleplay_Trends_${trendPeriod}_${now.toISOString().slice(0, 10)}.xlsx`)
+    } finally {
+      setIsDownloadingTrend(false)
+    }
+  }
+
   const totalSubmissions = useMemo(() =>
     submissions.filter((s) => s.status !== 'invalid').length,
   [submissions])
@@ -275,6 +360,18 @@ export default function RoleplayOverviewPage() {
           >
             <Download className={`h-3.5 w-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
             {isDownloading ? 'Preparing…' : 'Download Report'}
+          </Button>
+          <select
+            value={trendPeriod}
+            onChange={(e) => setTrendPeriod(e.target.value as 'weekly' | 'monthly')}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-gray-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+          <Button variant="outline" size="sm" onClick={downloadTrends} disabled={isDownloadingTrend} className="gap-2">
+            <Download className={`h-3.5 w-3.5 ${isDownloadingTrend ? 'animate-pulse' : ''}`} />
+            {isDownloadingTrend ? 'Preparing…' : 'Download Trends'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries()} className="gap-2">
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />

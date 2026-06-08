@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import {
   Upload, FileText, CheckCircle2, XCircle, AlertTriangle,
-  ClipboardList, Clock, RefreshCw, ChevronDown, ChevronUp,
+  ClipboardList, Clock, RefreshCw, ChevronDown, ChevronUp, Download,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -279,6 +279,21 @@ export default function ERPUploadPage() {
       else next.add(key)
       return next
     })
+  }
+
+  function downloadTemplate() {
+    const headers = [
+      'Customer Phone', 'Customer Name', 'Product Barcode', 'Product Name',
+      'Order Count', 'Product Quantity', 'Total Price', 'Month', 'Store Code',
+    ]
+    const sample = [
+      ['9717253226', 'Ankur', '8906186430377', "HUFT Sara's Wholesome Chicken & Turkey Grain Free Dog Wet Food 100gm", 3, 125, 13706.25, 'March 2026', 'HUFT-SAKET'],
+      ['9868815207', 'Pragiti Narang', '064992182120', 'Orijen Original Dog Dry Food 11.4kg', 1, 1, 12999, 'March 2026', 'HUFT-GK2'],
+    ]
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sample])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'ERP Data')
+    XLSX.writeFile(wb, 'HUFT_ERP_Upload_Template.xlsx')
   }
 
   const statsStoreId = mode === 'single' ? selectedStoreId : null
@@ -576,6 +591,26 @@ export default function ERPUploadPage() {
       <p className="text-sm text-muted-foreground">
         Parse ERP data and push follow-up tasks to store teams
       </p>
+
+      {/* ── Template download ── */}
+      {step !== 'success' && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Download Template</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Download and fill this template before uploading. Do not change column headers.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={downloadTemplate} className="shrink-0 gap-2">
+                <Download className="h-3.5 w-3.5" />
+                Download Template
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

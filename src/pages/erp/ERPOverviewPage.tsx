@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
 } from 'recharts'
-import { ClipboardList, Clock, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react'
+import { ClipboardList, Clock, CheckCircle2, AlertTriangle, RefreshCw, Download } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -252,6 +253,8 @@ export default function ERPOverviewPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<Filter>('today')
+  const [trendPeriod, setTrendPeriod] = useState<'weekly' | 'monthly'>('weekly')
+  const [isDownloadingTrend, setIsDownloadingTrend] = useState(false)
 
   const { data: tasks = [], dataUpdatedAt: tasksTs, isLoading: tL } = useTasks(filter)
   const { data: stores = [], isLoading: sL } = useStores()
@@ -447,6 +450,62 @@ export default function ERPOverviewPage() {
   const completedLabel = filter === 'today' ? 'Completed Today'    : filter === 'week' ? 'Completed This Week'    : 'Completed This Month'
   const completedSub   = filter === 'today' ? 'since midnight'     : filter === 'week' ? 'since Monday'           : 'since 1st'
 
+  function downloadTrends() {
+    setIsDownloadingTrend(true)
+    try {
+      const now = new Date()
+      let periodStart: string
+      let periodLabel: string
+      if (trendPeriod === 'weekly') {
+        const day = now.getDay()
+        const mon = new Date(now)
+        mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+        mon.setHours(0, 0, 0, 0)
+        periodStart = mon.toISOString().split('T')[0]
+        periodLabel = `Week of ${periodStart}`
+      } else {
+        periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        periodLabel = `${now.toLocaleString('en-IN', { month: 'long' })} ${now.getFullYear()}`
+      }
+      const nameMap = new Map(stores.map((s) => [s.id, s.name]))
+      type S = { total: number; done: number; pending: number; reorder: number; winback: number; pattern_break: number; other: number }
+      const byStore = new Map<string, S>()
+      for (const t of tasks) {
+        const d = (t.created_at ?? '').split('T')[0]
+        if (d < periodStart) continue
+        if (!byStore.has(t.store_id)) byStore.set(t.store_id, { total: 0, done: 0, pending: 0, reorder: 0, winback: 0, pattern_break: 0, other: 0 })
+        const b = byStore.get(t.store_id)!
+        b.total++
+        if (t.status === 'done') b.done++
+        else if (t.status === 'pending') b.pending++
+        if (t.task_type === 'reorder') b.reorder++
+        else if (t.task_type === 'winback') b.winback++
+        else if (t.task_type === 'pattern_break') b.pattern_break++
+        else b.other++
+      }
+      const rows = Array.from(byStore.entries())
+        .map(([id, c]) => ({
+          'Store': nameMap.get(id) ?? id,
+          'Period': periodLabel,
+          'Total Tasks': c.total,
+          'Completed': c.done,
+          'Pending': c.pending,
+          'Completion Rate': c.total > 0 ? `${Math.round((c.done / c.total) * 100)}%` : '0%',
+          'Reorder': c.reorder,
+          'Winback': c.winback,
+          'Pattern Break': c.pattern_break,
+          'Other': c.other,
+        }))
+        .sort((a, b) => a.Store.localeCompare(b.Store))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'ERP Trends')
+      XLSX.writeFile(wb, `HUFT_ERP_Trends_${trendPeriod}_${now.toISOString().slice(0, 10)}.xlsx`)
+    } finally {
+      setIsDownloadingTrend(false)
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
@@ -469,10 +528,24 @@ export default function ERPOverviewPage() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries()} className="gap-1.5 text-gray-600">
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <select
+              value={trendPeriod}
+              onChange={(e) => setTrendPeriod(e.target.value as 'weekly' | 'monthly')}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-gray-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={downloadTrends} disabled={isDownloadingTrend} className="gap-1.5 text-gray-600">
+              <Download className={`h-3.5 w-3.5 ${isDownloadingTrend ? 'animate-pulse' : ''}`} />
+              {isDownloadingTrend ? 'Preparing…' : 'Download Trends'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries()} className="gap-1.5 text-gray-600">
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           {tasksTs ? `Last updated ${fmtTime(tasksTs)}` : ' '}

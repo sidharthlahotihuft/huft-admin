@@ -16,7 +16,8 @@
       "Bash(sed -n '5,10p' /Users/sidharthlahoti/Desktop/huft_admin/src/pages/erp/StaffPage.tsx)",
       "Bash(xargs cat)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
-      "Bash(grep -n \"const { data: stores = \\\\[\\\\], isLoading\\\\|const { data: staff\\\\|const { data: tasks\\\\|const accent\\\\|const today\" /Users/sidharthlahoti/Desktop/huft_admin/src/pages/shared/StoresPage.tsx)"
+      "Bash(grep -n \"const { data: stores = \\\\[\\\\], isLoading\\\\|const { data: staff\\\\|const { data: tasks\\\\|const accent\\\\|const today\" /Users/sidharthlahoti/Desktop/huft_admin/src/pages/shared/StoresPage.tsx)",
+      "Bash(flutter analyze *)"
     ]
   }
 }
