@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type AiBreakdown = { dimension: string; score: number; max_score?: number; is_bonus?: boolean; feedback: string }
-type AiScore     = { overall: number; breakdown: AiBreakdown[]; summary: string }
+type AiScore     = { overall: number; breakdown: AiBreakdown[]; summary: string; invalid?: boolean; reason?: string }
 
 type Submission = {
   id: string
@@ -186,7 +186,7 @@ function ScoreCell({ sub }: { sub: Submission }) {
     )
   }
   if (!sub.ai_score) return <span className="text-xs text-muted-foreground">Pending</span>
-  return <span className={cn('text-sm font-semibold', scoreColor(sub.ai_score.overall))}>{sub.ai_score.overall}</span>
+  return <span className={cn('text-sm font-semibold', scoreColor(sub.ai_score?.overall ?? 0))}>{sub.ai_score?.overall ?? '–'}</span>
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ export default function RoleplayReviewPage() {
       setOverrideScore(sub.trainer_score ?? 0)
       setOverrideFeedback(sub.trainer_feedback ?? '')
     } else if (sub?.ai_score) {
-      setOverrideScore(sub.ai_score.overall)
+      setOverrideScore(sub.ai_score?.overall ?? 0)
       setOverrideFeedback('')
     } else {
       setOverrideScore(0)
@@ -720,7 +720,7 @@ export default function RoleplayReviewPage() {
                       )}
                       {selected.ai_score && (
                         <p className="text-xs text-gray-400">
-                          AI score: {selected.ai_score.overall}
+                          AI score: {selected.ai_score?.overall}
                         </p>
                       )}
                       {selected.trainer_feedback && (
@@ -740,8 +740,18 @@ export default function RoleplayReviewPage() {
                     </div>
                   )}
 
+                  {/* Invalid submission */}
+                  {!selected.score_overridden && selected.ai_score?.invalid && (
+                    <div className="rounded-lg bg-gray-50 px-3 py-3 text-xs text-gray-600">
+                      <p className="font-medium text-gray-700">Invalid submission</p>
+                      {selected.ai_score.reason && (
+                        <p className="mt-1 text-muted-foreground">{selected.ai_score.reason}</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Normal AI score display */}
-                  {!selected.score_overridden && selected.ai_score && (
+                  {!selected.score_overridden && selected.ai_score && !selected.ai_score.invalid && (
                     <div className="space-y-4">
                       {(selected.submitter_name ?? selected.staff?.name) && (
                         <p className="text-xs text-muted-foreground">
@@ -750,17 +760,17 @@ export default function RoleplayReviewPage() {
                         </p>
                       )}
                       <div className="flex items-center gap-4">
-                        <ScoreRing score={selected.ai_score.overall} />
+                        <ScoreRing score={selected.ai_score?.overall ?? 0} />
                         <div>
                           <p className="text-xs font-medium text-gray-500">Overall Score</p>
-                          <p className={cn('text-2xl font-bold', scoreColor(selected.ai_score.overall))}>
-                            {selected.ai_score.overall}
+                          <p className={cn('text-2xl font-bold', scoreColor(selected.ai_score?.overall ?? 0))}>
+                            {selected.ai_score?.overall}
                             <span className="text-base font-normal text-muted-foreground">/100</span>
                           </p>
                         </div>
                       </div>
 
-                      {selected.ai_score.breakdown.map((dim) => (
+                      {(selected.ai_score?.breakdown ?? []).map((dim) => (
                         <div key={dim.dimension} className="space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-medium text-gray-700">{dim.dimension}</span>
