@@ -395,6 +395,8 @@ export default function RoleplayReviewPage() {
     if (!selectedId || !selected) return
     setSavingOverride(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const authUserId    = user?.id ?? null
       const originalScore = selected.ai_score?.overall ?? null
 
       // Write to score_overrides for audit trail + Gemini calibration
@@ -403,9 +405,12 @@ export default function RoleplayReviewPage() {
         original_score: originalScore,
         override_score: overrideScore,
         trainer_notes:  overrideFeedback.trim() || null,
-        trainer_id:     currentUserId,
+        trainer_id:     authUserId,
       })
-      if (overrideErr) throw overrideErr
+      if (overrideErr) {
+        console.error('score_overrides insert error:', overrideErr)
+        throw overrideErr
+      }
 
       // Keep denormalised fields on the submission for fast display
       const { error: subErr } = await supabase.from('roleplay_submissions').update({

@@ -29,7 +29,7 @@ type Submission = {
   theme_id: string
   video_url: string | null
   staff:  { name: string } | null
-  store:  { name: string } | null
+  store:  { name: string; has_spa?: boolean | null } | null
   theme:  { title: string; brief_text: string } | null
 }
 
@@ -48,6 +48,7 @@ function buildPrompt(
   const themeTitle = submission.theme?.title     ?? 'Unknown Theme'
   const staffName  = submission.staff?.name      ?? 'Staff member'
   const storeName  = submission.store?.name      ?? 'Unknown store'
+  const hasSpa     = submission.store?.has_spa ?? false
 
   const examplesBlock = overrides.length > 0
     ? `\n\n## Trainer-calibrated examples for this theme\nThese are scores that a human trainer has manually reviewed and corrected for this theme. Use them to calibrate your judgment:\n\n${
@@ -56,6 +57,10 @@ function buildPrompt(
         ).join('\n')
       }`
     : ''
+
+  const spaInstruction = hasSpa
+    ? 'This store HAS a spa — evaluate whether the staff introduced spa services.'
+    : 'This store does NOT have a spa — set score to 0 and feedback to "N/A – no spa at this store".'
 
   return `You are a retail training assessor for HUFT (Heads Up For Tails), a premium pet-care brand in India.
 
@@ -69,25 +74,54 @@ ${themeBrief}
 ${examplesBlock}
 
 ## Task
-Watch the video submission carefully and evaluate the staff member's roleplay performance.
+Watch the video submission carefully and evaluate the staff member's roleplay performance against HUFT's official 24-point scoring rubric.
 
-Score each of the following dimensions from 0–100:
+## Required criteria (total maximum = 24 points)
 
-1. **Product Knowledge** — Does the staff show accurate knowledge of products, ingredients, and use cases?
-2. **Tone & Empathy** — Is the tone warm, patient, and customer-focused?
-3. **Closing Technique** — Does the staff guide the customer toward a purchase or next step naturally?
+Score each as an integer from 0 up to its maximum. Award full marks only when the behaviour is clearly demonstrated; partial marks for partial execution.
 
-Also produce an **Overall Score** (0–100) that reflects holistic performance.
+1. **First Impression** (max 5) — Grooming, hygiene, body language, attitude, energy. 5 = excellent across all; deduct 1 per noticeable shortfall.
+2. **Customer Welcome** (max 3) — Did the staff greet the customer, welcome them to the store, and introduce themselves by name? 1 point per element present.
+3. **Price Perception** (max 2) — Did the staff use keywords that create positive price perception (offers, discounts, variety, price points, value)? 2 = clearly communicated, 1 = partial, 0 = absent.
+4. **Pet Details** (max 4) — Did the staff collect the pet's breed, age, name, and weight? 1 point per detail collected.
+5. **Product & Breed Knowledge** (max 1) — Did the staff demonstrate accurate product or breed-specific knowledge relevant to the customer's pet? 1 = yes, 0 = no.
+6. **Product Demonstration** (max 2) — Did the staff physically pick up and show a product while explaining its USPs? 2 = full demo with USPs, 1 = showed product without USPs, 0 = absent.
+7. **Offers Communication** (max 1) — Did the staff proactively inform the customer about current ongoing offers? 1 = yes, 0 = no.
+8. **Cross Sell / Upsell** (max 1) — Did the staff use the SWF (See–Want–Feel) questioning technique to cross-sell or upsell? 1 = yes, 0 = no.
+9. **Query Handling** (max 1) — Did the staff address all customer questions or concerns effectively? 1 = yes, 0 = no.
+10. **Product Suggestion** (max 1) — Did the staff suggest a specific product after understanding the customer's needs through questioning? 1 = yes, 0 = no.
+11. **Impulse Products** (max 1) — Did the staff suggest small/impulse products at the checkout stage? 1 = yes, 0 = no.
+12. **Customer Data Capture** (max 1) — Did the staff update the customer's pet details at billing? 1 = yes, 0 = no.
+13. **Bag Handover & Google Review** (max 1) — Did the staff thank the customer and mention or request a Google review? 1 = yes, 0 = no.
+
+## Bonus criteria (DO NOT include in the 24-point required total)
+
+14. **Shopping Basket** (max 1) — Did the staff hand a shopping basket to the customer? 1 = yes, 0 = no.
+15. **Spa Introduction** (max 1) — ${spaInstruction} 1 = yes, 0 = no/N/A.
 
 ## Output format
 Respond with valid JSON only — no markdown fences, no extra text:
 
 {
-  "overall": <number>,
+  "required_score": <integer 0–24, sum of criteria 1–13>,
+  "bonus_score": <integer 0–2, sum of criteria 14–15>,
+  "overall": <integer 0–100, = round((required_score / 24) * 100)>,
   "breakdown": [
-    { "dimension": "Product Knowledge", "score": <number>, "feedback": "<one sentence>" },
-    { "dimension": "Tone & Empathy",    "score": <number>, "feedback": "<one sentence>" },
-    { "dimension": "Closing Technique", "score": <number>, "feedback": "<one sentence>" }
+    { "dimension": "First Impression",            "score": <0–5>, "max_score": 5, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Customer Welcome",            "score": <0–3>, "max_score": 3, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Price Perception",            "score": <0–2>, "max_score": 2, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Pet Details",                 "score": <0–4>, "max_score": 4, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Product & Breed Knowledge",   "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Product Demonstration",       "score": <0–2>, "max_score": 2, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Offers Communication",        "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Cross Sell / Upsell",         "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Query Handling",              "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Product Suggestion",          "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Impulse Products",            "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Customer Data Capture",       "score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Bag Handover & Google Review","score": <0–1>, "max_score": 1, "is_bonus": false, "feedback": "<one line>" },
+    { "dimension": "Shopping Basket",             "score": <0–1>, "max_score": 1, "is_bonus": true,  "feedback": "<one line>" },
+    { "dimension": "Spa Introduction",            "score": <0–1>, "max_score": 1, "is_bonus": true,  "feedback": "<one line>" }
   ],
   "summary": "<2-3 sentence overall summary of the performance>"
 }`
@@ -112,7 +146,7 @@ Deno.serve(async (req) => {
     // ── 1. Fetch submission ───────────────────────────────────────────────────
     const { data: sub, error: subErr } = await supabase
       .from('roleplay_submissions')
-      .select('*, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name), theme:themes!roleplay_submissions_theme_id_fkey(title, brief_text)')
+      .select('*, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name, has_spa), theme:themes!roleplay_submissions_theme_id_fkey(title, brief_text)')
       .eq('id', submission_id)
       .single()
     if (subErr || !sub) return jsonError(`Submission not found: ${subErr?.message}`, 404)
@@ -177,10 +211,22 @@ Deno.serve(async (req) => {
     const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
     const aiScore  = JSON.parse(jsonText)
 
-    // Basic validation
-    if (typeof aiScore.overall !== 'number' || !Array.isArray(aiScore.breakdown)) {
-      throw new Error('Gemini returned unexpected shape')
+    // Validate shape
+    if (!Array.isArray(aiScore.breakdown) || aiScore.breakdown.length !== 15) {
+      throw new Error('Gemini returned unexpected shape — expected 15 breakdown items')
     }
+
+    // Recompute totals server-side so arithmetic is always correct
+    const requiredScore = aiScore.breakdown
+      .filter((d: { is_bonus: boolean }) => !d.is_bonus)
+      .reduce((sum: number, d: { score: number }) => sum + (d.score ?? 0), 0)
+    const bonusScore = aiScore.breakdown
+      .filter((d: { is_bonus: boolean }) => d.is_bonus)
+      .reduce((sum: number, d: { score: number }) => sum + (d.score ?? 0), 0)
+
+    aiScore.required_score = requiredScore
+    aiScore.bonus_score    = bonusScore
+    aiScore.overall        = Math.round((requiredScore / 24) * 100)
 
     // ── 6. Persist score ──────────────────────────────────────────────────────
     const { error: updateErr } = await supabase
