@@ -58,6 +58,7 @@ const REGIONS  = ['Mumbai', 'Delhi', 'Delhi NCR', 'Hyderabad', 'Bangalore']
 
 const STATUS_TABS = [
   { key: 'all',         label: 'All' },
+  { key: 'submitted',   label: 'Submitted' },
   { key: 'ai_reviewed', label: 'AI Reviewed' },
   { key: 'approved',    label: 'Approved' },
   { key: 'rejected',    label: 'Rejected' },
@@ -89,20 +90,20 @@ function initials(name: string | null | undefined) {
 
 function scoreColor(n: number) {
   if (n >= 75) return 'text-emerald-600'
-  if (n >= 60) return 'text-amber-600'
+  if (n >= 45) return 'text-amber-600'
   return 'text-red-600'
 }
 
 function scoreStroke(n: number) {
   if (n >= 75) return '#22c55e'
-  if (n >= 60) return '#f59e0b'
+  if (n >= 45) return '#f59e0b'
   return '#ef4444'
 }
 
 function scoreGrade(n: number): { letter: string; label: string } {
-  if (n >= 90) return { letter: 'A', label: 'Excellent' }
-  if (n >= 75) return { letter: 'B', label: 'Good' }
-  if (n >= 60) return { letter: 'C', label: 'Needs Improvement' }
+  if (n >= 75) return { letter: 'A', label: 'Excellent' }
+  if (n >= 60) return { letter: 'B', label: 'Good' }
+  if (n >= 45) return { letter: 'C', label: 'Needs Improvement' }
   return { letter: 'D', label: 'Poor' }
 }
 
@@ -287,7 +288,7 @@ export default function RoleplayReviewPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = submissions.filter((s) => {
     const q = search.trim().toLowerCase()
-    const matchStatus        = statusTab === 'all' ? s.status !== 'submitted' : s.status === statusTab
+    const matchStatus        = statusTab === 'all' || s.status === statusTab
     const matchStore         = storeFilter === 'all' || s.store_id === storeFilter
     const matchAutoScope     = !assignedStoreIds || assignedStoreIds.has(s.store_id)
     const matchTrainerFilter = !trainerFilterStoreIds || trainerFilterStoreIds.has(s.store_id)
