@@ -12,7 +12,7 @@ const UserContext = createContext<UserContextValue>({ user: null, loading: true 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Staff | null>(null)
   const [loading, setLoading] = useState(true)
-  const sessionChecked = useRef(false)
+  const initialSessionChecked = useRef(false)
 
   async function loadUser(userId: string) {
     const { data, error } = await supabase
@@ -38,24 +38,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Hydrate from existing session on first load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        loadUser(session.user.id)
-      } else {
-        setLoading(false)
-      }
-      sessionChecked.current = true
-    })
-
-    // Keep in sync with Supabase auth events (login / logout / token refresh).
-    // Guard with sessionChecked so an early null event from onAuthStateChange
-    // cannot set loading=false before getSession() has finished.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadUser(session.user.id)
-      } else if (sessionChecked.current) {
+      } else if (initialSessionChecked.current) {
         setUser(null)
+        setLoading(false)
+      }
+    })
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      initialSessionChecked.current = true
+      if (session?.user) {
+        loadUser(session.user.id)
+      } else {
         setLoading(false)
       }
     })
