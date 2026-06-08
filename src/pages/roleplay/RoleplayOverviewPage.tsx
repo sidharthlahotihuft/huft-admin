@@ -136,7 +136,7 @@ export default function RoleplayOverviewPage() {
   const pieData = useMemo(() => {
     const bucket: Record<string, number> = { submitted: 0, ai_reviewed: 0, approved: 0, rejected: 0 }
     for (const s of submissions) bucket[s.status] = (bucket[s.status] ?? 0) + 1
-    return Object.entries(bucket).filter(([, v]) => v > 0)
+    return Object.entries(bucket).filter(([, v]) => v > 0).filter(Boolean)
       .map(([k, v]) => ({
         name: STATUS_CFG[k as SubmissionMin['status']].label,
         value: v,

@@ -447,7 +447,7 @@ export default function RoleplayReviewPage() {
           {/* Status tabs */}
           <div className="flex-shrink-0">
             <div className="inline-flex flex-wrap rounded-full bg-gray-100 p-0.5">
-              {STATUS_TABS.map(({ key, label }) => (
+              {STATUS_TABS.filter(Boolean).map(({ key, label }) => (
                 <button
                   key={key}
                   onClick={() => setStatusTab(key)}
