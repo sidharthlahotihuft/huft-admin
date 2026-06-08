@@ -89,6 +89,7 @@ const STATUS_CFG: Record<SubmissionMin['status'], { label: string; className: st
   ai_reviewed: { label: 'AI Reviewed', className: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50', color: '#F59E0B' },
   approved:    { label: 'Approved',    className: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50', color: '#10B981' },
   rejected:    { label: 'Rejected',    className: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50',         color: '#EF4444' },
+  invalid:     { label: 'Invalid',     className: 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-50',       color: '#9CA3AF' },
 }
 function StatusBadge({ status }: { status: SubmissionMin['status'] }) {
   const cfg = STATUS_CFG[status]
@@ -134,11 +135,11 @@ export default function RoleplayOverviewPage() {
   }, [submissions, stores])
 
   const pieData = useMemo(() => {
-    const bucket: Record<string, number> = { submitted: 0, ai_reviewed: 0, approved: 0, rejected: 0 }
+    const bucket: Record<string, number> = { submitted: 0, ai_reviewed: 0, approved: 0, rejected: 0, invalid: 0 }
     for (const s of submissions) bucket[s.status] = (bucket[s.status] ?? 0) + 1
     return Object.entries(bucket).filter(([, v]) => v > 0).filter(Boolean)
       .map(([k, v]) => ({
-        name: STATUS_CFG[k as SubmissionMin['status']].label,
+        name: STATUS_CFG[k as SubmissionMin['status']]?.label ?? k,
         value: v,
         color: STATUS_CFG[k as SubmissionMin['status']].color,
       }))
