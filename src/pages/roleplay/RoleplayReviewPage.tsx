@@ -89,21 +89,21 @@ function initials(name: string | null | undefined) {
 }
 
 function scoreColor(n: number) {
-  if (n >= 75) return 'text-emerald-600'
-  if (n >= 45) return 'text-amber-600'
+  if (n >= 80) return 'text-emerald-600'
+  if (n >= 60) return 'text-amber-600'
   return 'text-red-600'
 }
 
 function scoreStroke(n: number) {
-  if (n >= 75) return '#22c55e'
-  if (n >= 45) return '#f59e0b'
+  if (n >= 80) return '#22c55e'
+  if (n >= 60) return '#f59e0b'
   return '#ef4444'
 }
 
 function scoreGrade(n: number): { letter: string; label: string } {
-  if (n >= 75) return { letter: 'A', label: 'Excellent' }
+  if (n >= 80) return { letter: 'A', label: 'Excellent' }
   if (n >= 60) return { letter: 'B', label: 'Good' }
-  if (n >= 45) return { letter: 'C', label: 'Needs Improvement' }
+  if (n >= 50) return { letter: 'C', label: 'Needs Improvement' }
   return { letter: 'D', label: 'Poor' }
 }
 
@@ -190,12 +190,7 @@ function ScoreCell({ sub }: { sub: Submission }) {
     : sub.ai_score?.overall ?? null
   if (score == null) return <span className="text-xs text-muted-foreground">Pending</span>
   const grade = scoreGrade(score)
-  return (
-    <div className="flex flex-col leading-tight">
-      <span className={cn('text-sm font-bold', scoreColor(score))}>{grade.letter}</span>
-      <span className="text-[10px] text-muted-foreground">{score}/100</span>
-    </div>
-  )
+  return <span className={cn('text-sm font-bold', scoreColor(score))}>{grade.letter}</span>
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -748,17 +743,11 @@ export default function RoleplayReviewPage() {
                           <p className="mt-0.5 text-xs font-medium text-gray-600">
                             {scoreGrade(selected.trainer_score!).label}
                           </p>
-                          <p className="text-xs text-muted-foreground">{selected.trainer_score}/100</p>
                         </div>
                       </div>
                       {selected.reviewed_by_name && (
                         <p className="text-xs text-muted-foreground">
                           Reviewed by {selected.reviewed_by_name} on {fmtDateFull(selected.reviewed_at)}
-                        </p>
-                      )}
-                      {selected.ai_score && (
-                        <p className="text-xs text-gray-400">
-                          AI score: {selected.ai_score?.overall}
                         </p>
                       )}
                       {selected.trainer_feedback && (
@@ -806,22 +795,24 @@ export default function RoleplayReviewPage() {
                           <p className="mt-0.5 text-xs font-medium text-gray-600">
                             {scoreGrade(selected.ai_score?.overall ?? 0).label}
                           </p>
-                          <p className="text-xs text-muted-foreground">{selected.ai_score?.overall}/100</p>
                         </div>
                       </div>
 
-                      {(selected.ai_score?.breakdown ?? []).map((dim) => (
-                        <div key={dim.dimension} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-medium text-gray-700">{dim.dimension}</span>
-                            <span className={cn('font-semibold', scoreColor(dim.score))}>
-                              {dim.score}
-                            </span>
+                      {(selected.ai_score?.breakdown ?? []).map((dim) => {
+                        const pct = Math.round((dim.score / (dim.max_score ?? 1)) * 100)
+                        return (
+                          <div key={dim.dimension} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium text-gray-700">{dim.dimension}</span>
+                              <span className={cn('font-bold', scoreColor(pct))}>
+                                {scoreGrade(pct).letter}
+                              </span>
+                            </div>
+                            <Progress value={pct} className="h-1.5" />
+                            <p className="text-[11px] text-muted-foreground">{dim.feedback}</p>
                           </div>
-                          <Progress value={dim.score} className="h-1.5" />
-                          <p className="text-[11px] text-muted-foreground">{dim.feedback}</p>
-                        </div>
-                      ))}
+                        )
+                      })}
 
                       {selected.ai_score.summary && (
                         <div className="rounded-lg bg-gray-50 px-3 py-2.5">

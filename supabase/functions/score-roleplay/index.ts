@@ -215,7 +215,32 @@ Deno.serve(async (req) => {
 
     // Strip any accidental markdown fences
     const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-    const aiScore  = JSON.parse(jsonText)
+
+    let aiScore: Record<string, unknown>
+    try {
+      aiScore = JSON.parse(jsonText)
+    } catch (_parseErr) {
+      // Gemini returned plain text instead of JSON — check if it's describing an invalid video
+      const lower = rawText.toLowerCase()
+      const looksInvalid =
+        lower.includes('invalid') ||
+        lower.includes('not a valid') ||
+        lower.includes('does not show') ||
+        lower.includes('no customer')
+
+      if (looksInvalid) {
+        console.warn('[score-roleplay] Gemini returned plain-text invalid response:', rawText.slice(0, 300))
+        await supabase.from('roleplay_submissions').update({
+          status:   'ai_reviewed',
+          ai_score: { invalid: true, reason: rawText.slice(0, 300) },
+          ai_reviewed_at: new Date().toISOString(),
+        }).eq('id', submission_id)
+        return json({ success: true, invalid: true, reason: rawText.slice(0, 300) })
+      }
+
+      console.error('[score-roleplay] JSON parse failed. Raw Gemini text:', rawText.slice(0, 500))
+      throw new Error(`Gemini returned non-JSON response: ${rawText.slice(0, 200)}`)
+    }
 
     // Invalid submission detected by Gemini
     if (aiScore.invalid === true) {

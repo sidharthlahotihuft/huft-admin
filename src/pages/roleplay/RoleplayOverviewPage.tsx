@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
 } from 'recharts'
-import { Video, Clock, CheckCircle2, Star, RefreshCw } from 'lucide-react'
+import { Video, Clock, CheckCircle2, Star, RefreshCw, Download } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -15,8 +16,9 @@ import { supabase } from '@/lib/supabase'
 import type { ComponentType } from 'react'
 
 type SubmissionMin = {
-  id: string; status: 'submitted' | 'ai_reviewed' | 'approved' | 'rejected'
-  ai_score: { overall: number } | null; created_at: string; store_id: string
+  id: string; status: 'submitted' | 'ai_reviewed' | 'approved' | 'rejected' | 'invalid'
+  ai_score: { overall: number; required_score?: number } | null
+  created_at: string; approved_at: string | null; store_id: string
   staff: { name: string } | null; store: { name: string } | null; theme: { title: string } | null
 }
 type StoreMin = { id: string; name: string }
@@ -33,7 +35,7 @@ function useSubmissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roleplay_submissions')
-        .select('id, status, ai_score, created_at, store_id, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name), theme:themes!roleplay_submissions_theme_id_fkey(title)')
+        .select('id, status, ai_score, created_at, approved_at, store_id, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name), theme:themes!roleplay_submissions_theme_id_fkey(title)')
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data ?? []) as unknown as SubmissionMin[]
@@ -107,6 +109,14 @@ function EmptyRow({ cols, message }: { cols: number; message: string }) {
   )
 }
 
+const REPORT_DIMENSIONS = [
+  'First Impression', 'Customer Welcome', 'Price Perception', 'Pet Details',
+  'Product Knowledge', 'Product Demonstration', 'Offers Communication',
+  'Cross Sell/Upsell', 'Query Handling', 'Product Suggestion', 'Impulse Products',
+  'Customer Data Capture', 'Bag Handover & Google Review',
+  'Shopping Basket (Bonus)', 'Spa Introduction (Bonus)',
+]
+
 export default function RoleplayOverviewPage() {
   const queryClient = useQueryClient()
   const { data: submissions = [], dataUpdatedAt: subTs, isLoading: subL } = useSubmissions()
@@ -114,16 +124,110 @@ export default function RoleplayOverviewPage() {
   const isLoading = subL || sL
   const weekStart = useMemo(weekStartIso, [])
 
-  const totalSubmissions = submissions.length
-  const pendingAiReview = useMemo(() => submissions.filter((s) => s.status === 'submitted').length, [submissions])
+  const [reportStoreId, setReportStoreId] = useState<string>('all')
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  async function downloadReport() {
+    setIsDownloading(true)
+    try {
+      let query = supabase
+        .from('roleplay_submissions')
+        .select(
+          'id, status, created_at, submitter_name, ai_score, store_id,' +
+          'staff:staff!roleplay_submissions_staff_id_fkey(name),' +
+          'store:stores!roleplay_submissions_store_id_fkey(name),' +
+          'theme:themes!roleplay_submissions_theme_id_fkey(title)',
+        )
+        .order('created_at', { ascending: false })
+
+      if (reportStoreId !== 'all') {
+        query = query.eq('store_id', reportStoreId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+
+      const rows = (data ?? []).map((sub: Record<string, unknown>) => {
+        const score = sub.ai_score as Record<string, unknown> | null
+        const reqScore = score?.required_score as number | undefined
+        const pct = reqScore != null ? (reqScore / 24) * 100 : null
+        let grade = '–'
+        if (pct != null) {
+          if (pct >= 80) grade = 'A'
+          else if (pct >= 60) grade = 'B'
+          else if (pct >= 50) grade = 'C'
+          else grade = 'D'
+        }
+
+        const breakdown = (score?.breakdown as Array<Record<string, unknown>> | undefined) ?? []
+        const dimCols: Record<string, string> = {}
+        for (const dim of REPORT_DIMENSIONS) {
+          const found = breakdown.find(
+            (d) => (d.dimension as string)?.toLowerCase() === dim.toLowerCase(),
+          )
+          dimCols[dim] = found
+            ? `${found.score}/${found.max_score ?? '?'}`
+            : '–'
+        }
+
+        const staffObj = sub.staff as Record<string, unknown> | null
+        const storeObj = sub.store as Record<string, unknown> | null
+        const themeObj = sub.theme as Record<string, unknown> | null
+        const statusCfg = STATUS_CFG[sub.status as SubmissionMin['status']]
+
+        return {
+          'Submitter Name': (sub.submitter_name as string | null) ?? (staffObj?.name as string | null) ?? '–',
+          'Store': (storeObj?.name as string | null) ?? '–',
+          'Theme': (themeObj?.title as string | null) ?? '–',
+          'Date': sub.created_at
+            ? new Date(sub.created_at as string).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+            : '–',
+          'Status': statusCfg?.label ?? (sub.status as string),
+          'Overall Grade': grade,
+          ...dimCols,
+        }
+      })
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Roleplay Report')
+
+      const storeName =
+        reportStoreId === 'all'
+          ? 'All_Stores'
+          : (stores.find((s) => s.id === reportStoreId)?.name ?? 'Store').replace(/\s+/g, '_')
+      const date = new Date().toISOString().slice(0, 10)
+
+      XLSX.writeFile(wb, `HUFT_Roleplay_Report_${storeName}_${date}.xlsx`)
+    } catch (err) {
+      console.error('Download report failed:', err)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const totalSubmissions = useMemo(() =>
+    submissions.filter((s) => s.status !== 'invalid').length,
+  [submissions])
+
+  const pendingAiReview = useMemo(() =>
+    submissions.filter((s) => s.status === 'submitted').length,
+  [submissions])
+
   const approvedThisWeek = useMemo(() =>
-    submissions.filter((s) => s.status === 'approved' && s.created_at >= weekStart).length,
+    submissions.filter((s) => s.status === 'approved' && s.approved_at != null && s.approved_at >= weekStart).length,
   [submissions, weekStart])
+
   const avgScore = useMemo(() => {
-    const scored = submissions.filter((s) => s.ai_score?.overall != null)
+    const scored = submissions.filter(
+      (s) => s.status !== 'invalid' && s.ai_score?.required_score != null,
+    )
     if (!scored.length) return '–'
-    const avg = scored.reduce((sum, s) => sum + s.ai_score!.overall, 0) / scored.length
-    return avg.toFixed(1)
+    const avg = scored.reduce((sum, s) => sum + ((s.ai_score!.required_score ?? 0) / 24) * 100, 0) / scored.length
+    if (avg >= 80) return 'A'
+    if (avg >= 60) return 'B'
+    if (avg >= 50) return 'C'
+    return 'D'
   }, [submissions])
 
   const barData = useMemo(() => {
@@ -149,12 +253,34 @@ export default function RoleplayOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">{subTs ? `Last updated ${fmtTime(subTs)}` : ' '}</p>
-        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries()} className="gap-2">
-          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <select
+            value={reportStoreId}
+            onChange={(e) => setReportStoreId(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-gray-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">All Stores</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadReport}
+            disabled={isDownloading}
+            className="gap-2"
+          >
+            <Download className={`h-3.5 w-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
+            {isDownloading ? 'Preparing…' : 'Download Report'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries()} className="gap-2">
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
