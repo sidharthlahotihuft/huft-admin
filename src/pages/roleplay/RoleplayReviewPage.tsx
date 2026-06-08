@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AiBreakdown = { dimension: string; score: number; feedback: string }
+type AiBreakdown = { dimension: string; score: number; max_score?: number; is_bonus?: boolean; feedback: string }
 type AiScore     = { overall: number; breakdown: AiBreakdown[]; summary: string }
 
 type Submission = {
@@ -210,13 +210,11 @@ export default function RoleplayReviewPage() {
   const [briefExpanded, setBriefExpanded] = useState(false)
 
   // ── Score override ────────────────────────────────────────────────────────
-  const [overrideExpanded, setOverrideExpanded] = useState(false)
-  const [overrideScore, setOverrideScore]       = useState(0)
-  const [overridePK, setOverridePK]             = useState(0)
-  const [overrideTone, setOverrideTone]         = useState(0)
-  const [overrideClosing, setOverrideClosing]   = useState(0)
-  const [overrideFeedback, setOverrideFeedback] = useState('')
-  const [savingOverride, setSavingOverride]     = useState(false)
+  const [overrideExpanded, setOverrideExpanded]     = useState(false)
+  const [overrideScore, setOverrideScore]           = useState(0)
+  const [overrideBreakdown, setOverrideBreakdown]   = useState<AiBreakdown[]>([])
+  const [overrideFeedback, setOverrideFeedback]     = useState('')
+  const [savingOverride, setSavingOverride]         = useState(false)
 
   // ── Reject dialog ─────────────────────────────────────────────────────────
   const [rejectOpen, setRejectOpen]     = useState(false)
@@ -312,11 +310,17 @@ export default function RoleplayReviewPage() {
       setOverrideScore(0)
       setOverrideFeedback('')
     }
-    const bd = sub?.ai_score?.breakdown ?? []
-    setOverridePK(bd.find((d) => d.dimension.toLowerCase().includes('product'))?.score ?? 0)
-    setOverrideTone(bd.find((d) => d.dimension.toLowerCase().includes('tone') || d.dimension.toLowerCase().includes('empathy'))?.score ?? 0)
-    setOverrideClosing(bd.find((d) => d.dimension.toLowerCase().includes('closing'))?.score ?? 0)
+    setOverrideBreakdown(sub?.ai_score?.breakdown ?? [])
   }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-compute overall from breakdown whenever dimension scores change
+  useEffect(() => {
+    if (overrideBreakdown.length === 0) return
+    const req = overrideBreakdown
+      .filter((d) => !d.is_bonus)
+      .reduce((sum, d) => sum + d.score, 0)
+    setOverrideScore(Math.round((req / 24) * 100))
+  }, [overrideBreakdown])
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   function invalidate() {
@@ -401,11 +405,12 @@ export default function RoleplayReviewPage() {
 
       // Write to score_overrides for audit trail + Gemini calibration
       const { error: overrideErr } = await supabase.from('score_overrides').insert({
-        submission_id:  selectedId,
-        original_score: originalScore,
-        override_score: overrideScore,
-        trainer_notes:  overrideFeedback.trim() || null,
-        trainer_id:     authUserId,
+        submission_id:      selectedId,
+        original_score:     originalScore,
+        override_score:     overrideScore,
+        trainer_notes:      overrideFeedback.trim() || null,
+        trainer_id:         authUserId,
+        breakdown_override: overrideBreakdown.length > 0 ? overrideBreakdown : null,
       })
       if (overrideErr) {
         console.error('score_overrides insert error:', overrideErr)
@@ -824,8 +829,48 @@ export default function RoleplayReviewPage() {
                   {overrideExpanded && (
                     <div className="mt-4 space-y-3 rounded-lg border border-orange-200 bg-orange-50/30 p-3">
                       <p className="text-xs font-semibold text-gray-700">Override AI Score</p>
+
+                      {/* Per-dimension inputs */}
+                      {overrideBreakdown.length > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-500">Dimension Scores</label>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                            {overrideBreakdown.map((dim) => (
+                              <div key={dim.dimension} className="space-y-0.5">
+                                <div className="flex items-center justify-between gap-1">
+                                  <label className="truncate text-[10px] font-medium leading-tight text-gray-600">
+                                    {dim.dimension}
+                                    {dim.is_bonus && (
+                                      <span className="ml-1 rounded px-0.5 text-[8px] bg-purple-100 text-purple-600">bonus</span>
+                                    )}
+                                  </label>
+                                  <span className="shrink-0 text-[10px] text-muted-foreground">/ {dim.max_score ?? 1}</span>
+                                </div>
+                                <Input
+                                  type="number" min="0" max={dim.max_score ?? 1}
+                                  value={dim.score}
+                                  onChange={(e) => {
+                                    const val = Math.min(Math.max(0, Number(e.target.value)), dim.max_score ?? 1)
+                                    setOverrideBreakdown((prev) =>
+                                      prev.map((d) => d.dimension === dim.dimension ? { ...d, score: val } : d)
+                                    )
+                                  }}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Overall (auto-computed from criteria, manually adjustable) */}
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-600">Overall Score (0–100)</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-gray-600">Overall Score (0–100)</label>
+                          {overrideBreakdown.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground">auto-computed</span>
+                          )}
+                        </div>
                         <Input
                           type="number" min="0" max="100"
                           value={overrideScore}
@@ -833,25 +878,7 @@ export default function RoleplayReviewPage() {
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { label: 'Product Knowledge', value: overridePK,      set: setOverridePK      },
-                          { label: 'Tone & Empathy',    value: overrideTone,    set: setOverrideTone    },
-                          { label: 'Closing Technique', value: overrideClosing, set: setOverrideClosing },
-                        ].map(({ label, value, set }) => (
-                          <div key={label} className="space-y-0.5">
-                            <label className="text-[10px] font-medium text-gray-500 leading-tight block">
-                              {label}
-                            </label>
-                            <Input
-                              type="number" min="0" max="100"
-                              value={value}
-                              onChange={(e) => set(Number(e.target.value))}
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                        ))}
-                      </div>
+
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-gray-600">Trainer Feedback</label>
                         <textarea

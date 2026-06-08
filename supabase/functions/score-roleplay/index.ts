@@ -99,7 +99,11 @@ Score each as an integer from 0 up to its maximum. Award full marks only when th
 14. **Shopping Basket** (max 1) — Did the staff hand a shopping basket to the customer? 1 = yes, 0 = no.
 15. **Spa Introduction** (max 1) — ${spaInstruction} 1 = yes, 0 = no/N/A.
 
-## Output format
+## IMPORTANT — validity check
+Before scoring, determine whether this is a valid HUFT retail roleplay video. A valid video must show a staff member interacting with or simulating a customer interaction in a retail context. If the video does NOT show a customer interaction (e.g. it shows only animals, random footage, personal videos, or has no human speaking), respond with this exact JSON instead of scoring:
+{ "invalid": true, "reason": "<one sentence describing what the video actually shows>" }
+
+## Output format (only if the video is valid)
 Respond with valid JSON only — no markdown fences, no extra text:
 
 {
@@ -212,6 +216,16 @@ Deno.serve(async (req) => {
     // Strip any accidental markdown fences
     const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
     const aiScore  = JSON.parse(jsonText)
+
+    // Invalid submission detected by Gemini
+    if (aiScore.invalid === true) {
+      const reason = typeof aiScore.reason === 'string' ? aiScore.reason : 'Not a valid retail roleplay video'
+      await supabase.from('roleplay_submissions').update({
+        status:   'invalid',
+        ai_score: { invalid: true, reason },
+      }).eq('id', submission_id)
+      return jsonError(`Invalid submission: ${reason}`, 422)
+    }
 
     // Validate shape
     if (!Array.isArray(aiScore.breakdown) || aiScore.breakdown.length < 13) {

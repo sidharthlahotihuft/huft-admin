@@ -33,7 +33,7 @@ function useSubmissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roleplay_submissions')
-        .select('id, status, ai_score, created_at, store_id, staff:staff(name), store:stores(name), theme:themes(title)')
+        .select('id, status, ai_score, created_at, store_id, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name), theme:themes!roleplay_submissions_theme_id_fkey(title)')
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data ?? []) as unknown as SubmissionMin[]
