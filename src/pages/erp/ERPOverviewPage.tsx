@@ -133,6 +133,11 @@ function parseOutcome(notes: string | null, callOutcome?: string | null): string
   if (n.includes('purchased'))          return 'Purchased'
   if (n.includes('call unanswered'))    return 'Call unanswered'
   if (n.includes('call back'))          return 'Call back'
+  if (n.includes('interested'))         return 'Purchased'
+  if (n.includes('already bought'))     return 'Purchased'
+  if (n.includes('no answer'))          return 'Call unanswered'
+  if (n.includes('wrong number'))       return 'Call unanswered'
+  if (n.includes('call later'))         return 'Call back'
   return 'Other'
 }
 
