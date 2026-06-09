@@ -19,6 +19,7 @@ type TaskMin = {
   id: string; store_id: string
   status: 'pending' | 'done' | 'skipped'
   due_date: string | null; task_type: string; updated_at: string | null
+  call_outcome: string | null
 }
 type StoreMin = { id: string; name: string; region: string }
 type SubmissionMin = {
@@ -32,7 +33,7 @@ function useTasks() {
     queryKey: ['tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('tasks').select('id, store_id, status, due_date, task_type, updated_at')
+        .from('tasks').select('id, store_id, status, due_date, task_type, updated_at, call_outcome')
       if (error) throw error
       return (data ?? []) as TaskMin[]
     },
@@ -185,6 +186,19 @@ export default function OverviewPage() {
       .map(([k, v]) => ({ name: PIE_CFG[k]?.label ?? k, value: v, color: PIE_CFG[k]?.color ?? '#9CA3AF' }))
   }, [tasks])
 
+  const doneTasks = useMemo(() => tasks.filter((t) => t.status === 'done'), [tasks])
+  const callsLogged = doneTasks.length
+  const purchased = useMemo(() => doneTasks.filter((t) => t.call_outcome === 'Purchased').length, [doneTasks])
+  const willPurchase = useMemo(() => doneTasks.filter((t) => t.call_outcome === 'Will purchase soon').length, [doneTasks])
+  const notInterested = useMemo(() => doneTasks.filter((t) => t.call_outcome === 'Not interested').length, [doneTasks])
+  const unanswered = useMemo(() => doneTasks.filter((t) => t.call_outcome === 'Call unanswered').length, [doneTasks])
+  const outcomePieData = useMemo(() => [
+    { name: 'Purchased',          value: purchased,    color: '#10B981' },
+    { name: 'Will purchase soon', value: willPurchase, color: '#3B82F6' },
+    { name: 'Not interested',     value: notInterested, color: '#EF4444' },
+    { name: 'Call unanswered',    value: unanswered,   color: '#9CA3AF' },
+  ].filter((d) => d.value > 0), [purchased, willPurchase, notInterested, unanswered])
+
   const storeRows = useMemo(() =>
     stores.map((s) => {
       const st = tasks.filter((t) => t.store_id === s.id)
@@ -204,9 +218,9 @@ export default function OverviewPage() {
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <KpiCard icon={ClipboardList} label="Total Pending Tasks" value={totalPending.toLocaleString('en-IN')} sub="across all stores" iconBg="bg-[#E8642C]" />
-        <KpiCard icon={Clock} label="Due Today" value={dueToday.toLocaleString('en-IN')} sub="pending tasks" iconBg="bg-red-500" />
-        <KpiCard icon={Video} label="Roleplay Submissions" value={weekCount.toLocaleString('en-IN')} sub="this week" iconBg="bg-blue-500" />
-        <KpiCard icon={TrendingUp} label="Avg Completion Rate" value={`${avgCompletion}%`} sub="per-store average" iconBg="bg-emerald-500" />
+        <KpiCard icon={Clock} label="Calls Logged" value={callsLogged.toLocaleString('en-IN')} sub="completed tasks" iconBg="bg-blue-500" />
+        <KpiCard icon={TrendingUp} label="Purchased" value={purchased.toLocaleString('en-IN')} sub="confirmed purchases" iconBg="bg-emerald-500" />
+        <KpiCard icon={Video} label="Not Interested" value={notInterested.toLocaleString('en-IN')} sub="declined calls" iconBg="bg-red-500" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -227,13 +241,13 @@ export default function OverviewPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-0"><CardTitle className="text-sm font-semibold">Task Type Breakdown</CardTitle><p className="text-xs text-muted-foreground">Distribution across all tasks</p></CardHeader>
+          <CardHeader className="pb-0"><CardTitle className="text-sm font-semibold">Customer Outcomes</CardTitle><p className="text-xs text-muted-foreground">What happened on calls — completed tasks</p></CardHeader>
           <CardContent className="pt-4">
-            {pieData.length === 0 ? <EmptyChart /> : (
+            {outcomePieData.length === 0 ? <EmptyChart /> : (
               <ResponsiveContainer width="100%" height={268}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="46%" innerRadius={58} outerRadius={95} paddingAngle={3} dataKey="value">
-                    {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                  <Pie data={outcomePieData} cx="50%" cy="46%" innerRadius={58} outerRadius={95} paddingAngle={3} dataKey="value">
+                    {outcomePieData.map((e, i) => <Cell key={i} fill={e.color} />)}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} formatter={(v: number, name: string) => [v.toLocaleString('en-IN'), name]} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
