@@ -254,6 +254,50 @@ function toISO(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
+function startOfToday(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+// ─── Follow-up task builder ───────────────────────────────────────────────────
+
+/**
+ * Emit 1 or 2 follow-up tasks applying these rules in order:
+ *
+ * SHORT-CYCLE  (t−4 ≤ lastPurchaseDate, i.e. < 4 days of supply):
+ *   Emit a single task:  due_date = max(predictedFinish − 2, today), seq = 1
+ *
+ * NORMAL CYCLE (t−4 > lastPurchaseDate):
+ *   Emit two tasks:  FU1 due = max(t−4, today), seq = 1
+ *                    FU2 due = max(t−2, today), seq = 2
+ *
+ * GENERAL GUARD: no due_date may be before lastPurchaseDate OR before today.
+ */
+function buildFollowupTasks(
+  base: Partial<Task>,
+  lastPurchaseDate: Date,
+  predictedFinish: Date,
+): Partial<Task>[] {
+  const today = startOfToday()
+  const t4    = addDays(predictedFinish, -4)
+  const t2    = addDays(predictedFinish, -2)
+
+  // Clamp: never before lastPurchaseDate and never before today
+  const floor = new Date(Math.max(lastPurchaseDate.getTime(), today.getTime()))
+  const clamp = (d: Date): Date => d < floor ? floor : d
+
+  if (t4.getTime() <= lastPurchaseDate.getTime()) {
+    // Short-cycle: emit a single follow-up at max(t−2, floor)
+    return [{ ...base, due_date: toISO(clamp(t2)), followup_sequence: 1 }]
+  }
+
+  return [
+    { ...base, due_date: toISO(clamp(t4)), followup_sequence: 1 },
+    { ...base, due_date: toISO(clamp(t2)), followup_sequence: 2 },
+  ]
+}
+
 // ─── Task-type determination ──────────────────────────────────────────────────
 
 function determineTaskType(
@@ -343,10 +387,7 @@ function buildTasksFromHistory(
     followup_t_minus_2:    toISO(t2),
   }
 
-  return [
-    { ...base, due_date: toISO(t4), followup_sequence: 1 },
-    { ...base, due_date: toISO(t2), followup_sequence: 2 },
-  ]
+  return buildFollowupTasks(base, lastPurchaseDate, predictedFinish)
 }
 
 // Legacy task builder used by the wide/pivot format
@@ -402,10 +443,7 @@ function buildTasksLegacy(
     followup_t_minus_2:    toISO(t2),
   }
 
-  return [
-    { ...base, due_date: toISO(t4), followup_sequence: 1 },
-    { ...base, due_date: toISO(t2), followup_sequence: 2 },
-  ]
+  return buildFollowupTasks(base, lastPurchaseDate, predictedFinish)
 }
 
 // ─── CSV parser ───────────────────────────────────────────────────────────────
