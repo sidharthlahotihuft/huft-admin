@@ -17,7 +17,10 @@
       "Bash(xargs cat)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}, indent=2\\)\\)\")",
       "Bash(grep -n \"const { data: stores = \\\\[\\\\], isLoading\\\\|const { data: staff\\\\|const { data: tasks\\\\|const accent\\\\|const today\" /Users/sidharthlahoti/Desktop/huft_admin/src/pages/shared/StoresPage.tsx)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Read(//Users/sidharthlahoti/Downloads/**)",
+      "Bash(npx supabase *)",
+      "Bash(curl -s \"https://aavhsdzsuyqwdaygtijs.supabase.co/rest/v1/stores?select=id,name&order=name\" -H \"apikey: $\\(grep VITE_SUPABASE_ANON_KEY .env)"
     ]
   }
 }

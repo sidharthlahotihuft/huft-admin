@@ -324,9 +324,11 @@ export default function ERPUploadPage() {
         const buf  = await f.arrayBuffer()
         const wb   = XLSX.read(buf, { type: 'array', bookSheets: true })
         const matches: SheetMatch[] = wb.SheetNames.map((name) => {
-          const store = stores.find(
-            (s) => s.name.trim().toLowerCase() === name.trim().toLowerCase(),
-          )
+          const shNorm = name.trim().toLowerCase()
+          const store = stores.find((s) => {
+            const sNorm = s.name.trim().toLowerCase().replace(/^huft[-\s]*/i, '').trim()
+            return sNorm === shNorm || sNorm.includes(shNorm) || shNorm.includes(sNorm)
+          })
           return { sheetName: name, storeId: store?.id ?? null, storeName: store?.name ?? null, matched: !!store }
         })
         setSheetMatches(matches)
@@ -406,22 +408,28 @@ export default function ERPUploadPage() {
       if (mode === 'single') {
         if (!selectedStoreId) return
         let data: string | unknown[][]
+        const storeName = stores.find((s) => s.id === selectedStoreId)?.name ?? selectedStoreId
         if (file.name.toLowerCase().endsWith('.csv')) {
           data = await file.text()
         } else {
-          const buf   = await file.arrayBuffer()
-          const wb    = XLSX.read(buf, { type: 'array', cellDates: true })
-          const sheet = wb.Sheets[wb.SheetNames[0]]
+          const buf = await file.arrayBuffer()
+          const wb  = XLSX.read(buf, { type: 'array', cellDates: true })
+          // Find the sheet whose name best matches the selected store (e.g. "SAKET" → "HUFT Saket")
+          const storeShort = storeName.toLowerCase().replace(/^huft[-\s]*/i, '').trim()
+          const matchedSheet = wb.SheetNames.find((sn) => {
+            const snl = sn.trim().toLowerCase()
+            return snl === storeShort || storeShort.includes(snl) || snl.includes(storeShort)
+          }) ?? wb.SheetNames[0]
+          const sheet = wb.Sheets[matchedSheet]
           data = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
             header: 1, defval: '', raw: false,
           }) as unknown[][]
         }
-        const tasks     = parseERPData(data, selectedStoreId, rules)
-        const storeName = stores.find((s) => s.id === selectedStoreId)?.name ?? selectedStoreId
+        const tasks = parseERPData(data, selectedStoreId, rules)
         const singlePreview = tasks.length ? [{ storeId: selectedStoreId, storeName, tasks }] : []
         setPreviewStores(singlePreview)
         if (!tasks.length) {
-          setParseError('No tasks generated — check that the file format matches expected ERP structure.')
+          setParseError('No tasks generated — check that the file format matches the expected ERP structure (flat or legacy pivot).')
           setStep('file-ready')
           return
         }
