@@ -30,6 +30,7 @@ type TaskMin = {
   customer_name: string; customer_phone: string | null
   notes: string | null; product_name: string | null; created_at: string
   call_outcome: string | null
+  snoozed_until: string | null
 }
 type StoreMin = { id: string; name: string }
 
@@ -76,7 +77,7 @@ function useTasks(filter: Filter) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, store_id, status, due_date, task_type, updated_at, customer_name, customer_phone, notes, product_name, created_at, call_outcome')
+        .select('id, store_id, status, due_date, task_type, updated_at, customer_name, customer_phone, notes, product_name, created_at, call_outcome, snoozed_until')
       if (error) throw error
       return (data ?? []) as TaskMin[]
     },
@@ -428,10 +429,8 @@ export default function ERPOverviewPage() {
     let snoozed = 0; let active = 0
     for (const t of periodTasks) {
       if (t.status !== 'pending') continue
-      if (t.due_date && t.created_at) {
-        const days = (new Date(t.due_date).getTime() - new Date(t.created_at).getTime()) / 86_400_000
-        if (days > 1) snoozed++; else active++
-      } else active++
+      if (t.snoozed_until) snoozed++
+      else active++
     }
     const done  = periodDone
     const total = Math.max(snoozed + active + done, 1)
