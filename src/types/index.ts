@@ -45,8 +45,8 @@ export type ReplenishmentRule = {
   id?: string;
   product_type: 'dry_food' | 'wet_food';
   brand: string | null;
-  weight_min: number;
-  weight_max: number;
+  weight_min_kg: number;
+  weight_max_kg: number;
   replenishment_days: number;
   is_global: boolean;
   store_id: string | null;

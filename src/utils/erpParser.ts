@@ -38,13 +38,29 @@ const MONTH_IDX: Record<string, number> = {
 
 // ─── Hardcoded fallback replenishment rules ───────────────────────────────────
 
-const WEIGHT_DEFAULTS: Array<{ maxKg: number; days: number }> = [
-  { maxKg: 0.5,      days: 15 },
-  { maxKg: 2,        days: 30 },
-  { maxKg: 5,        days: 45 },
-  { maxKg: 15,       days: 60 },
-  { maxKg: Infinity, days: 90 },
-]
+const WEIGHT_DEFAULTS: Record<'dry_food' | 'wet_food' | 'default', Array<{ maxKg: number; days: number }>> = {
+  dry_food: [
+    { maxKg: 0.5,      days: 15  },
+    { maxKg: 2,        days: 45  },
+    { maxKg: 5,        days: 75  },
+    { maxKg: 15,       days: 120 },
+    { maxKg: Infinity, days: 150 },
+  ],
+  wet_food: [
+    { maxKg: 0.5,      days: 7  },
+    { maxKg: 2,        days: 20 },
+    { maxKg: 5,        days: 40 },
+    { maxKg: 15,       days: 60 },
+    { maxKg: Infinity, days: 75 },
+  ],
+  default: [
+    { maxKg: 0.5,      days: 15  },
+    { maxKg: 2,        days: 30  },
+    { maxKg: 5,        days: 45  },
+    { maxKg: 15,       days: 90  },
+    { maxKg: Infinity, days: 120 },
+  ],
+}
 
 // ─── Weight helpers ───────────────────────────────────────────────────────────
 
@@ -210,12 +226,13 @@ function inferProductType(name: string): 'dry_food' | 'wet_food' | null {
 
 // ─── Replenishment rule matching ──────────────────────────────────────────────
 
-function getDefaultDays(weightKg: number | null): number {
+function getDefaultDays(weightKg: number | null, productType: 'dry_food' | 'wet_food' | null): number {
   if (weightKg === null) return 30
-  for (const r of WEIGHT_DEFAULTS) {
+  const bands = WEIGHT_DEFAULTS[productType ?? 'default']
+  for (const r of bands) {
     if (weightKg <= r.maxKg) return r.days
   }
-  return 90
+  return 120
 }
 
 function findReplenishmentDays(
@@ -225,7 +242,7 @@ function findReplenishmentDays(
   rules: ReplenishmentRule[],
 ): number {
   function matches(r: ReplenishmentRule): boolean {
-    if (weightKg !== null && (weightKg < r.weight_min || weightKg > r.weight_max)) return false
+    if (weightKg !== null && (weightKg < r.weight_min_kg || weightKg > r.weight_max_kg)) return false
     if (r.product_type && productType && r.product_type !== productType) return false
     return true
   }
@@ -235,7 +252,7 @@ function findReplenishmentDays(
   for (const r of rules) {
     if (r.is_global && matches(r)) return r.replenishment_days
   }
-  return getDefaultDays(weightKg)
+  return getDefaultDays(weightKg, productType)
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
