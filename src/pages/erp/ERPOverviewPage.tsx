@@ -29,6 +29,7 @@ type TaskMin = {
   due_date: string | null; task_type: string; updated_at: string | null
   customer_name: string; customer_phone: string | null
   notes: string | null; product_name: string | null; created_at: string
+  call_outcome: string | null
 }
 type StoreMin = { id: string; name: string }
 
@@ -75,7 +76,7 @@ function useTasks(filter: Filter) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, store_id, status, due_date, task_type, updated_at, customer_name, customer_phone, notes, product_name, created_at')
+        .select('id, store_id, status, due_date, task_type, updated_at, customer_name, customer_phone, notes, product_name, created_at, call_outcome')
       if (error) throw error
       return (data ?? []) as TaskMin[]
     },
@@ -123,39 +124,33 @@ function hasNegativeOutcome(notes: string | null): boolean {
   return NEGATIVE_KEYWORDS.some((k) => n.includes(k))
 }
 
-function parseOutcome(notes: string | null): string {
+function parseOutcome(notes: string | null, callOutcome?: string | null): string {
+  if (callOutcome && callOutcome.trim()) return callOutcome
   if (!notes || !notes.trim()) return 'Other'
   const n = notes.toLowerCase()
-  if (n.includes('not_interested') || n.includes('not interested')) return 'Not Interested'
-  if (n.includes('wrong_number')   || n.includes('wrong number'))   return 'Wrong Number'
-  if (n.includes('complaint'))                                       return 'Complaint'
-  if (n.includes('no_answer')      || n.includes('no answer'))      return 'No Answer'
-  if (n.includes('call_later')     || n.includes('call later'))     return 'Call Later'
-  if (n.includes('already bought') || n.includes('already_bought')) return 'Already Bought'
-  if (n.includes('interested'))                                      return 'Interested'
-  if (n.includes('bought')         || n.includes('purchased'))      return 'Already Bought'
+  if (n.includes('not interested'))     return 'Not interested'
+  if (n.includes('will purchase soon')) return 'Will purchase soon'
+  if (n.includes('purchased'))          return 'Purchased'
+  if (n.includes('call unanswered'))    return 'Call unanswered'
+  if (n.includes('call back'))          return 'Call back'
   return 'Other'
 }
 
 const OUTCOME_COLOR: Record<string, string> = {
-  'Interested':    '#10B981',
-  'Already Bought':'#3B82F6',
-  'Call Later':    '#F59E0B',
-  'No Answer':     '#9CA3AF',
-  'Not Interested':'#EF4444',
-  'Wrong Number':  '#F87171',
-  'Complaint':     '#B91C1C',
-  'Other':         '#D1D5DB',
+  'Purchased':          '#10B981',
+  'Will purchase soon': '#3B82F6',
+  'Not interested':     '#EF4444',
+  'Call unanswered':    '#9CA3AF',
+  'Call back':          '#F59E0B',
+  'Other':              '#D1D5DB',
 }
 const OUTCOME_BADGE: Record<string, string> = {
-  'Interested':    'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50',
-  'Already Bought':'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50',
-  'Call Later':    'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50',
-  'No Answer':     'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50',
-  'Not Interested':'bg-red-50 text-red-700 border-red-200 hover:bg-red-50',
-  'Wrong Number':  'bg-red-50 text-red-600 border-red-100 hover:bg-red-50',
-  'Complaint':     'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-50',
-  'Other':         'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-50',
+  'Purchased':          'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50',
+  'Will purchase soon': 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50',
+  'Not interested':     'bg-red-50 text-red-700 border-red-200 hover:bg-red-50',
+  'Call unanswered':    'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50',
+  'Call back':          'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50',
+  'Other':              'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-50',
 }
 
 // ─── Task type display config ──────────────────────────────────────────────────
@@ -371,7 +366,7 @@ export default function ERPOverviewPage() {
         store: nameMap.get(last.store_id) ?? '–',
         timesContacted: ctasks.length,
         lastContact: last.updated_at,
-        lastOutcome: parseOutcome(last.notes),
+        lastOutcome: parseOutcome(last.notes, last.call_outcome),
       })
     }
     return result.sort((a, b) => b.timesContacted - a.timesContacted).slice(0, 10)
@@ -409,7 +404,7 @@ export default function ERPOverviewPage() {
     const doneTasks = periodTasks.filter((t) => t.status === 'done')
     const counts: Record<string, number> = {}
     for (const t of doneTasks) {
-      const o = parseOutcome(t.notes)
+      const o = parseOutcome(t.notes, t.call_outcome)
       counts[o] = (counts[o] ?? 0) + 1
     }
     const total = doneTasks.length || 1
