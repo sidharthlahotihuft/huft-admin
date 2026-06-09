@@ -640,7 +640,6 @@ export default function ERPOverviewPage() {
         <Tabs defaultValue="customer">
           <TabsList className="h-9">
             <TabsTrigger value="customer" className="text-xs">Customer Insights</TabsTrigger>
-            <TabsTrigger value="quality"  className="text-xs">Task Quality</TabsTrigger>
           </TabsList>
 
           {/* ─── Customer Insights tab ──────────────────────────────────────── */}
@@ -692,52 +691,6 @@ export default function ERPOverviewPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 2: Customers Without Conversion */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Customers Without Conversion</CardTitle>
-                  <p className="text-xs text-muted-foreground">Contacted multiple times, no result</p>
-                </CardHeader>
-                <CardContent className="px-0 pb-1">
-                  {isLoading ? <InsightSkeleton /> : stuckCustomers.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
-                      <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-                      <p className="text-sm font-medium text-gray-700">No stuck customers — great work!</p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-5">Customer</TableHead>
-                          <TableHead>Store</TableHead>
-                          <TableHead className="text-right">Contacts</TableHead>
-                          <TableHead>Last Contact</TableHead>
-                          <TableHead className="pr-5">Outcome</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stuckCustomers.map((c, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="pl-5">
-                              <p className="font-medium text-gray-900 leading-tight">{c.customerName}</p>
-                              {c.phone && <p className="text-[11px] text-muted-foreground">{c.phone}</p>}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{c.store}</TableCell>
-                            <TableCell className="text-right font-semibold text-orange-600">{c.timesContacted}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{fmtDate(c.lastContact)}</TableCell>
-                            <TableCell className="pr-5">
-                              <Badge variant="outline" className={cn('text-[10px]', OUTCOME_BADGE[c.lastOutcome] ?? OUTCOME_BADGE['Other'])}>
-                                {c.lastOutcome}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-
               {/* Card 3: Most Reordered Products */}
               <Card>
                 <CardHeader className="pb-0">
@@ -755,107 +708,6 @@ export default function ERPOverviewPage() {
                         <Bar dataKey="count" fill="#E8642C" radius={[0, 4, 4, 0]} maxBarSize={18} />
                       </BarChart>
                     </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
-
-            </div>
-          </TabsContent>
-
-          {/* ─── Task Quality tab ──────────────────────────────────────────────── */}
-          <TabsContent value="quality" className="mt-4">
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-
-              {/* Card 1: Task Completion */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Task Completion</CardTitle>
-                  <p className="text-xs text-muted-foreground">Tasks completed vs total in period</p>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? <InsightSkeleton /> : (
-                    <div className="flex items-center gap-5">
-                      <ProgressRing pct={conversionPct} />
-                      <div className="min-w-0">
-                        <p className="text-2xl font-bold text-gray-900">{conversionPct}%</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {periodDone.toLocaleString('en-IN')} tasks completed out of {periodTasks.length.toLocaleString('en-IN')} total
-                        </p>
-                        <p className={cn('mt-2 text-[11px] font-semibold', convStatus.cls)}>{convStatus.label}</p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Card 2: Customer Outcomes */}
-              <Card>
-                <CardHeader className="pb-0">
-                  <CardTitle className="text-sm font-semibold">Customer Outcomes</CardTitle>
-                  <p className="text-xs text-muted-foreground">What happened on calls — completed tasks</p>
-                </CardHeader>
-                <CardContent className="pt-3">
-                  {isLoading ? <InsightSkeleton /> : outcomePieData.length === 0 ? <EmptyChart /> : (
-                    <ResponsiveContainer width="100%" height={240}>
-                      <PieChart>
-                        <Pie data={outcomePieData} cx="50%" cy="44%" innerRadius={52} outerRadius={82} paddingAngle={2} dataKey="value">
-                          {outcomePieData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
-                          formatter={(v: number, name: string) => {
-                            const entry = outcomePieData.find((d) => d.name === name)
-                            return [`${v.toLocaleString('en-IN')} (${entry?.pct ?? 0}%)`, name]
-                          }}
-                        />
-                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Card 3: Snooze vs Completion */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Snooze vs Completion</CardTitle>
-                  <p className="text-xs text-muted-foreground">How tasks are being resolved</p>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? <InsightSkeleton /> : (
-                    <div className="space-y-5">
-                      <div className="flex items-start gap-8">
-                        <div>
-                          <p className="text-3xl font-bold text-orange-500">{snoozeStats.snoozed.toLocaleString('en-IN')}</p>
-                          <p className="mt-0.5 text-xs font-medium text-gray-700">Tasks Snoozed</p>
-                          <p className="text-xs text-muted-foreground">{snoozeStats.snoozedPct.toFixed(0)}% of period</p>
-                        </div>
-                        <div>
-                          <p className="text-3xl font-bold text-emerald-600">{snoozeStats.done.toLocaleString('en-IN')}</p>
-                          <p className="mt-0.5 text-xs font-medium text-gray-700">Tasks Completed</p>
-                          <p className="text-xs text-muted-foreground">{snoozeStats.donePct.toFixed(0)}% of period</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                          <div style={{ width: `${snoozeStats.snoozedPct}%` }} className="bg-orange-400 transition-all duration-500" />
-                          <div style={{ width: `${snoozeStats.donePct}%`    }} className="bg-emerald-500 transition-all duration-500" />
-                          <div style={{ width: `${snoozeStats.activePct}%`  }} className="bg-gray-300 transition-all duration-500" />
-                        </div>
-                        <div className="flex gap-3 text-[10px] text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <span className="inline-block h-2 w-2 rounded-full bg-orange-400" /> Snoozed
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Completed
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="inline-block h-2 w-2 rounded-full bg-gray-300" /> Pending
-                          </span>
-                        </div>
-                      </div>
-                    </div>
                   )}
                 </CardContent>
               </Card>
