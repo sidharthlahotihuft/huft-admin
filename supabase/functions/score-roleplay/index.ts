@@ -144,7 +144,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { submission_id } = await req.json() as { submission_id: string }
+    const body = await req.json() as { submission_id?: string; record?: { id: string }; type?: string }
+    // Accept direct call ({ submission_id }) or Supabase webhook payload ({ type, record })
+    const submission_id = body.submission_id ?? body.record?.id
     if (!submission_id) return jsonError('submission_id is required', 400)
 
     // ── 1. Fetch submission ───────────────────────────────────────────────────

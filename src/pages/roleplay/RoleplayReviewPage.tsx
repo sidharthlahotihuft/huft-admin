@@ -441,7 +441,7 @@ export default function RoleplayReviewPage() {
         override_score:     overrideScore,
         trainer_notes:      overrideFeedback.trim() || null,
         trainer_id:         authUserId,
-        breakdown_override: overrideBreakdown.length > 0 ? overrideBreakdown : null,
+        // breakdown_override: overrideBreakdown.length > 0 ? overrideBreakdown : null,
       })
       if (overrideErr) {
         console.error('score_overrides insert error:', overrideErr)
