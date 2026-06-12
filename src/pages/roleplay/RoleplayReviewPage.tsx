@@ -441,7 +441,7 @@ export default function RoleplayReviewPage() {
         override_score:     overrideScore,
         trainer_notes:      overrideFeedback.trim() || null,
         trainer_id:         authUserId,
-        // breakdown_override: overrideBreakdown.length > 0 ? overrideBreakdown : null,
+        breakdown_override: overrideBreakdown.length > 0 ? overrideBreakdown : null,
       })
       if (overrideErr) {
         console.error('score_overrides insert error:', overrideErr)
@@ -904,20 +904,15 @@ export default function RoleplayReviewPage() {
                         </div>
                       )}
 
-                      {/* Overall (auto-computed from criteria, manually adjustable) */}
+                      {/* Overall (auto-computed from criteria — read only) */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs font-medium text-gray-600">Overall Score (0–100)</label>
-                          {overrideBreakdown.length > 0 && (
-                            <span className="text-[10px] text-muted-foreground">auto-computed</span>
-                          )}
+                          <label className="text-xs font-medium text-gray-600">Overall Score (auto-computed)</label>
+                          <span className="text-[10px] text-muted-foreground">based on dimension scores</span>
                         </div>
-                        <Input
-                          type="number" min="0" max="100"
-                          value={overrideScore}
-                          onChange={(e) => setOverrideScore(Number(e.target.value))}
-                          className="h-8 text-xs"
-                        />
+                        <div className="flex h-8 items-center rounded-lg border border-input bg-gray-50 px-3 text-xs font-semibold text-gray-700">
+                          {overrideScore} / 100
+                        </div>
                       </div>
 
                       <div className="space-y-1">
