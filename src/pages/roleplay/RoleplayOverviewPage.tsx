@@ -43,6 +43,17 @@ function useSubmissions() {
     staleTime: 60_000,
   })
 }
+function useActiveThemes() {
+  return useQuery<{id: string; title: string}[]>({
+    queryKey: ['themes', 'active'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('themes').select('id, title').eq('is_active', true)
+      if (error) throw error
+      return (data ?? []) as {id: string; title: string}[]
+    },
+    staleTime: 5 * 60_000,
+  })
+}
 function useStores() {
   return useQuery<StoreMin[]>({
     queryKey: ['stores'],
@@ -121,10 +132,27 @@ export default function RoleplayOverviewPage() {
   const queryClient = useQueryClient()
   const { data: submissions = [], dataUpdatedAt: subTs, isLoading: subL } = useSubmissions()
   const { data: stores = [], isLoading: sL } = useStores()
+  const { data: activeThemes = [] } = useActiveThemes()
   const isLoading = subL || sL
   const weekStart = useMemo(weekStartIso, [])
 
   const [reportStoreId, setReportStoreId] = useState<string>('all')
+
+  // Compute which stores have NOT submitted for each active theme this week
+  const missingSubmissions = useMemo(() => {
+    const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay() || 7) + 1); monday.setHours(0,0,0,0)
+    const result: { theme: string; stores: string[] }[] = []
+    for (const theme of activeThemes) {
+      const submitted = new Set(
+        submissions
+          .filter((s) => s.theme?.title === theme.title && new Date(s.created_at) >= monday)
+          .map((s) => s.store_id)
+      )
+      const missing = stores.filter((st) => !submitted.has(st.id)).map((st) => st.name)
+      if (missing.length > 0) result.push({ theme: theme.title, stores: missing })
+    }
+    return result
+  }, [activeThemes, stores, submissions])
   const [isDownloading, setIsDownloading] = useState(false)
   const [trendPeriod, setTrendPeriod] = useState<'weekly' | 'monthly'>('weekly')
   const [isDownloadingTrend, setIsDownloadingTrend] = useState(false)
@@ -463,6 +491,43 @@ export default function RoleplayOverviewPage() {
               }
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Stores Not Yet Submitted This Week</CardTitle>
+          <p className="text-xs text-muted-foreground">Active themes with no submissions from these stores</p>
+        </CardHeader>
+        <CardContent className="px-0 pb-1">
+          {missingSubmissions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
+              <p className="text-sm font-medium text-gray-700">All stores have submitted this week!</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-5">Theme</TableHead>
+                  <TableHead className="pr-5">Stores Not Submitted</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {missingSubmissions.map((row) => (
+                  <TableRow key={row.theme}>
+                    <TableCell className="pl-5 font-medium text-gray-900 align-top">{row.theme}</TableCell>
+                    <TableCell className="pr-5">
+                      <div className="flex flex-wrap gap-1">
+                        {row.stores.map((s) => (
+                          <span key={s} className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">{s}</span>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
