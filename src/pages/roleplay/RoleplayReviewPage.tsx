@@ -834,7 +834,14 @@ export default function RoleplayReviewPage() {
 
                       {!overrideExpanded && (
                         <button
-                          onClick={() => setOverrideExpanded(true)}
+                          onClick={() => {
+                            // Re-populate breakdown from current AI score when opening
+                            if (selected?.ai_score?.breakdown && !selected.ai_score.invalid) {
+                              setOverrideBreakdown(selected.ai_score.breakdown)
+                              setOverrideScore(selected.trainer_score ?? selected.ai_score.overall ?? 0)
+                            }
+                            setOverrideExpanded(true)
+                          }}
                           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-200 py-2 text-xs font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700"
                         >
                           ✏️ Override this score
