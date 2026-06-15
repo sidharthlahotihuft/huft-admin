@@ -798,7 +798,7 @@ export default function RoleplayReviewPage() {
                         </div>
                       </div>
 
-                      {(selected.ai_score?.breakdown ?? []).map((dim) => {
+                      {(selected.ai_score?.breakdown ?? []).filter((dim) => dim.feedback !== 'Not assessed for this theme.').map((dim) => {
                         const pct = Math.round((dim.score / (dim.max_score ?? 1)) * 100)
                         return (
                           <div key={dim.dimension} className="space-y-1">
@@ -883,7 +883,7 @@ export default function RoleplayReviewPage() {
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-medium text-gray-500">Dimension Scores</label>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                            {overrideBreakdown.map((dim) => (
+                            {overrideBreakdown.filter((dim) => dim.feedback !== 'Not assessed for this theme.').map((dim) => (
                               <div key={dim.dimension} className="space-y-0.5">
                                 <div className="flex items-center justify-between gap-1">
                                   <label className="truncate text-[10px] font-medium leading-tight text-gray-600">
