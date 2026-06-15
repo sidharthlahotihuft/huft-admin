@@ -27,6 +27,7 @@ type Theme = {
   id: string
   title: string
   brief_text: string
+  scoring_criteria: string[] | null
   is_active: boolean
   created_at: string
   launch_date: string | null
@@ -271,6 +272,25 @@ export default function ThemeManagerPage() {
   const { data: assignments = new Map() }        = useAssignments()
   const { data: storesList = [] }                = useStoresList()
 
+// ── Scoring criteria ──────────────────────────────────────────────────────────
+const ALL_CRITERIA = [
+  { key: 'First Impression',           max: 5, bonus: false },
+  { key: 'Customer Welcome',           max: 3, bonus: false },
+  { key: 'Price Perception',           max: 2, bonus: false },
+  { key: 'Pet Details',                max: 4, bonus: false },
+  { key: 'Product & Breed Knowledge',  max: 1, bonus: false },
+  { key: 'Product Demonstration',      max: 2, bonus: false },
+  { key: 'Offers Communication',       max: 1, bonus: false },
+  { key: 'Cross Sell / Upsell',        max: 1, bonus: false },
+  { key: 'Query Handling',             max: 1, bonus: false },
+  { key: 'Product Suggestion',         max: 1, bonus: false },
+  { key: 'Impulse Products',           max: 1, bonus: false },
+  { key: 'Customer Data Capture',      max: 1, bonus: false },
+  { key: 'Bag Handover & Google Review', max: 1, bonus: false },
+  { key: 'Shopping Basket',            max: 1, bonus: true  },
+  { key: 'Spa Introduction',           max: 1, bonus: true  },
+]
+
   // ── Form state ────────────────────────────────────────────────────────────
   const [editingId, setEditingId]     = useState<string | null>(null)
   const [title, setTitle]             = useState('')
@@ -278,6 +298,7 @@ export default function ThemeManagerPage() {
   const [isActive, setIsActive]       = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [saving, setSaving]           = useState(false)
+  const [scoringCriteria, setScoringCriteria] = useState<string[]>(ALL_CRITERIA.map((c) => c.key))
   const [launchDate, setLaunchDate]               = useState(todayISO)
   const [expiryDate, setExpiryDate]               = useState('')
   const [submissionDeadlineDays, setSubmissionDeadlineDays] = useState(4)
@@ -311,6 +332,7 @@ export default function ThemeManagerPage() {
     setIsActive(true); setShowPreview(false)
     setLaunchDate(todayISO()); setExpiryDate(''); setSubmissionDeadlineDays(4)
     setAssignScope('all'); setAssignRegions([]); setAssignStoreId('')
+    setScoringCriteria(ALL_CRITERIA.map((c) => c.key))
   }
 
   function startEdit(theme: Theme) {
@@ -321,6 +343,7 @@ export default function ThemeManagerPage() {
     setSubmissionDeadlineDays(theme.submission_deadline_days ?? 4)
     setShowPreview(false)
     const existing = assignments.get(theme.id)
+    setScoringCriteria(theme.scoring_criteria ?? ALL_CRITERIA.map((c) => c.key))
     setAssignScope(existing?.scope ?? 'all')
     setAssignRegions(existing?.region ? existing.region.split(',').map((r) => r.trim()).filter(Boolean) : [])
     setAssignStoreId(existing?.store_id ?? '')
@@ -367,6 +390,7 @@ export default function ThemeManagerPage() {
         launch_date: launchDate || null,
         expiry_date: expiryDate || null,
         submission_deadline_days: submissionDeadlineDays,
+        scoring_criteria: scoringCriteria.length === ALL_CRITERIA.length ? null : scoringCriteria,
       }
       if (isEditing) {
         const { error } = await supabase.from('themes').update(payload).eq('id', editingId!)
@@ -722,6 +746,47 @@ export default function ThemeManagerPage() {
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          {/* Scoring Criteria */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-gray-700">Scoring Criteria</label>
+              <button
+                type="button"
+                onClick={() => setScoringCriteria(
+                  scoringCriteria.length === ALL_CRITERIA.length
+                    ? []
+                    : ALL_CRITERIA.map((c) => c.key)
+                )}
+                className="text-[11px] text-orange-600 underline-offset-2 hover:underline"
+              >
+                {scoringCriteria.length === ALL_CRITERIA.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-gray-100 bg-gray-50 p-3">
+              {ALL_CRITERIA.map((c) => (
+                <label key={c.key} className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={scoringCriteria.includes(c.key)}
+                    onChange={() => setScoringCriteria((prev) =>
+                      prev.includes(c.key) ? prev.filter((k) => k !== c.key) : [...prev, c.key]
+                    )}
+                    className="h-3.5 w-3.5 rounded accent-orange-500"
+                  />
+                  <span className="text-[11px] text-gray-700 leading-tight">
+                    {c.key}
+                    {c.bonus && <span className="ml-1 text-[9px] text-purple-500">bonus</span>}
+                    <span className="ml-1 text-[9px] text-gray-400">/{c.max}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {scoringCriteria.filter((k) => !ALL_CRITERIA.find((c) => c.key === k)?.bonus).length} required criteria selected
+              · max {ALL_CRITERIA.filter((c) => !c.bonus && scoringCriteria.includes(c.key)).reduce((s, c) => s + c.max, 0)} points
+            </p>
           </div>
 
           {/* Submit */}
