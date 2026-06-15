@@ -91,8 +91,8 @@ function parseMonthCell(cell: unknown): Date | null {
 
   if (typeof cell === 'number') {
     if (cell < 1000) return null
-    const epoch = new Date(1899, 11, 30)
-    const d = new Date(epoch.getTime() + cell * 86_400_000)
+    const d = new Date(1899, 11, 30 + Math.floor(cell as number))
+    // local date construction avoids UTC/IST timezone offset
     if (d.getFullYear() < 2000 || d.getFullYear() > 2035) return null
     return new Date(d.getFullYear(), d.getMonth(), 1)
   }
@@ -154,10 +154,11 @@ function parseDateCell(cell: unknown): Date | null {
   if (cell instanceof Date) return isNaN(cell.getTime()) ? null : cell
 
   if (typeof cell === 'number') {
-    // Excel serial date
+    // Excel serial date — use local date to avoid UTC/IST offset issues
     if (cell < 1000) return null
-    const epoch = new Date(1899, 11, 30)
-    const d = new Date(epoch.getTime() + cell * 86_400_000)
+    const totalDays = Math.floor(cell)
+    const epoch = new Date(1899, 11, 30) // local midnight
+    const d = new Date(epoch.getFullYear(), epoch.getMonth(), epoch.getDate() + totalDays)
     return d.getFullYear() >= 2000 ? d : null
   }
 
