@@ -140,9 +140,9 @@ Before scoring, determine whether this is a valid HUFT retail roleplay video. A 
 Respond with valid JSON only — no markdown fences, no extra text:
 
 {
-  "required_score": <integer 0–24, sum of criteria 1–13>,
-  "bonus_score": <integer 0–2, sum of criteria 14–15>,
-  "overall": <integer 0–100, = round((required_score / 24) * 100)>,
+  "required_score": <integer, sum of ACTIVE required criteria scores only>,
+  "bonus_score": <integer, sum of ACTIVE bonus criteria scores only>,
+  "overall": <integer 0–100, = round((required_score / active_required_max) * 100) where active_required_max is the sum of max points of active required criteria>,
   "breakdown": [
     { "dimension": "First Impression",            "score": <0–5>, "max_score": 5, "is_bonus": false, "feedback": "<one line>" },
     { "dimension": "Customer Welcome",            "score": <0–3>, "max_score": 3, "is_bonus": false, "feedback": "<one line>" },
