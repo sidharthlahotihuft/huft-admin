@@ -692,13 +692,14 @@ export default function ERPUploadPage() {
               </>
             ) : (
               <>
-                <div className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
-                  Upload one Excel file with multiple sheets.
-                  Each sheet name must match a store name <em>exactly</em>.
+                <div className="space-y-1 rounded-lg bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
+                  <p className="font-semibold">Bulk upload — single sheet, all stores</p>
+                  <p>Upload one Excel or CSV with a <strong>Store Name</strong> column. Rows are assigned to the matching store automatically.</p>
+                  <p className="text-blue-500">Required: Customer Phone, Customer Name, Product Name, Quantity, Date or Month, <strong>Store Name</strong></p>
+                  <p className="text-blue-500">Customers who shop across stores are assigned to their most recent store.</p>
                 </div>
 
-                <DropZone file={file} accept=".xlsx" onFile={handleFileSelected} />
+                <DropZone file={file} accept=".xlsx,.csv" onFile={handleFileSelected} />
 
                 {step === 'detecting' && (
                   <p className="animate-pulse text-xs text-muted-foreground">Detecting sheets…</p>
