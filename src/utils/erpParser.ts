@@ -760,13 +760,22 @@ export function deduplicateCrossStore(
       ? `Customer also visited: ${[...otherStores].join(', ')}`
       : undefined
 
+    // Keep only ONE task per product (the one from the winner store, or best date if tied)
+    const seen = new Map<string, Partial<Task>>()
     for (const t of tasks) {
-      result.push({
-        ...t,
-        store_id: winnerStoreId,
-        notes: crossStoreNote ?? t.notes,
-      })
+      const productKey = t.product_sku ?? t.product_name ?? ''
+      const updated = { ...t, store_id: winnerStoreId, notes: crossStoreNote ?? t.notes }
+      const existing = seen.get(productKey)
+      if (!existing) {
+        seen.set(productKey, updated)
+      } else {
+        // Keep the one with the more recent last_purchase_date
+        const da = existing.last_purchase_date ? new Date(existing.last_purchase_date).getTime() : 0
+        const db = updated.last_purchase_date  ? new Date(updated.last_purchase_date).getTime()  : 0
+        if (db > da) seen.set(productKey, updated)
+      }
     }
+    for (const t of seen.values()) result.push(t)
   }
   return result
 }
