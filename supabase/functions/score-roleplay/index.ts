@@ -74,9 +74,12 @@ Theme: ${themeTitle}
 ${themeBrief}
 ${examplesBlock}
 
+## ⚠️ SCORING SCOPE — READ FIRST
+${submission.theme?.scoring_criteria ? `This theme restricts scoring to ONLY these criteria: ${submission.theme.scoring_criteria.join(', ')}.
+For every other criterion NOT in this list, you MUST set score = 0 and feedback = "Not assessed for this theme." No exceptions.` : 'Score all criteria below.'}
+
 ## Task
 Watch the video submission carefully and evaluate the staff member's roleplay performance against the criteria below.
-${submission.theme?.scoring_criteria ? `IMPORTANT: Only score these criteria: ${submission.theme.scoring_criteria.join(', ')}. For all other criteria set score to 0 and feedback to "Not assessed for this theme."` : 'Score all criteria below.'}
 
 ## Required criteria (total maximum = 24 points)
 
