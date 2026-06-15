@@ -599,7 +599,12 @@ function processFlatSheet(
     if (!/^\d{8,12}$/.test(phoneRaw)) continue
 
     const purchaseDate = parseDateCell(dateRaw)
-    if (!purchaseDate) continue
+    if (!purchaseDate) {
+      throw new Error(
+        `Row ${ri + 1}: Invalid date "${String(dateRaw).trim()}" for customer ${nameRaw} (${phoneRaw}). ` +
+        `Please use DD/MM/YYYY, DD-Mon-YYYY, or YYYY-MM-DD format. Fix the Excel file and re-upload.`
+      )
+    }
 
     const qty = typeof qtyRaw === 'number' ? qtyRaw : parseFloat(String(qtyRaw ?? '0'))
     if (isNaN(qty) || qty < 0) continue
