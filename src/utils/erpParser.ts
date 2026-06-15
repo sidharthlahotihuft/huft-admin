@@ -12,7 +12,7 @@
  *   One row per (customer × product × date/month) transaction.
  *   Columns (order-independent, matched by header name):
  *     Customer Phone | Customer Name | Product Barcode | Product Name |
- *     Order Count    | Product Quantity | Total Price   |
+ *     Product Quantity | Total Price   |
  *     Month  ← monthly summary ("January 2026")
  *     Date   ← daily export ("09/06/2026" or "09-Jun-2026")
  *     Store Code  (optional; ignored in favour of the sheet→storeId map)
