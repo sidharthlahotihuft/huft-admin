@@ -812,9 +812,9 @@ export const parseBulkSheet = async (
 ): Promise<Record<string, Partial<Task>[]>> => {
   const XLSX = await import('xlsx')
   const buffer = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: true }) as unknown[][]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false }) as unknown[][]
 
   const header = detectFlatHeader(rows)
   if (!header || header.storeName < 0) {
@@ -883,7 +883,7 @@ export const parseMultiSheetExcel = async (
   const XLSX = await import('xlsx')
 
   const buffer   = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
 
   // Build a normalised lookup: lowercase-trimmed sheet name → storeId
   const normMap: Record<string, string> = {}
