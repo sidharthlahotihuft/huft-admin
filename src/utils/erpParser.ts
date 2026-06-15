@@ -32,11 +32,11 @@ import type { Task, ReplenishmentRule } from '@/types'
  * so we subtract 1 before computing. This matches what XLSX.SSF.parse_date_code does.
  */
 function excelSerialToDate(serial: number): Date | null {
-  if (serial < 1 || serial > 2958465) return null // 1 Jan 1900 to 31 Dec 9999
-  // Serials > 60: subtract 1 to skip the phantom Feb 29 1900
+  if (serial < 1 || serial > 2958465) return null
+  // Excel serials > 60: subtract 1 to skip phantom Feb 29 1900 (Lotus bug)
   const adjusted = serial > 60 ? serial - 1 : serial
-  // Excel epoch: Jan 0 1900 = Dec 31 1899
-  const d = new Date(1900, 0, adjusted)
+  // Dec 31 1899 + adjusted days = correct local calendar date
+  const d = new Date(1899, 11, 31 + adjusted)
   return isNaN(d.getTime()) ? null : d
 }
 
