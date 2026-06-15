@@ -319,24 +319,8 @@ export default function ERPUploadPage() {
     setPreviewStores([])
 
     if (mode === 'bulk') {
-      setStep('detecting')
-      try {
-        const buf  = await f.arrayBuffer()
-        const wb   = XLSX.read(buf, { type: 'array', bookSheets: true })
-        const matches: SheetMatch[] = wb.SheetNames.map((name) => {
-          const shNorm = name.trim().toLowerCase()
-          const store = stores.find((s) => {
-            const sNorm = s.name.trim().toLowerCase().replace(/^huft[-\s]*/i, '').trim()
-            return sNorm === shNorm || sNorm.includes(shNorm) || shNorm.includes(sNorm)
-          })
-          return { sheetName: name, storeId: store?.id ?? null, storeName: store?.name ?? null, matched: !!store }
-        })
-        setSheetMatches(matches)
-        setStep('detected')
-      } catch (e) {
-        setParseError(`Could not read Excel file: ${(e as Error).message}`)
-        setStep('idle')
-      }
+      // Bulk mode uses Store Name column — no sheet detection needed
+      setStep('detected')
     } else {
       setStep('file-ready')
     }
@@ -594,7 +578,7 @@ export default function ERPUploadPage() {
   const anyMatchedSheets = sheetMatches.some((m) => m.matched)
   const canParse =
     (mode === 'single' && !!file && !!selectedStoreId && step === 'file-ready') ||
-    (mode === 'bulk'   && step === 'detected' && anyMatchedSheets)
+    (mode === 'bulk'   && step === 'detected' && !!file)
 
   const showUploadCard = ['idle', 'file-ready', 'detecting', 'detected'].includes(step)
 
@@ -705,7 +689,7 @@ export default function ERPUploadPage() {
                   <p className="animate-pulse text-xs text-muted-foreground">Detecting sheets…</p>
                 )}
 
-                {step === 'detected' && sheetMatches.length > 0 && (
+                {step === 'detected' && sheetMatches.length > 0 && mode === 'single' && (
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-gray-700">Detected sheets:</p>
                     {sheetMatches.map((m) => (
