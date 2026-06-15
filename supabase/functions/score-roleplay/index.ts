@@ -30,7 +30,7 @@ type Submission = {
   video_url: string | null
   staff:  { name: string } | null
   store:  { name: string; has_spa?: boolean | null } | null
-  theme:  { title: string; brief_text: string } | null
+  theme:  { title: string; brief_text: string; scoring_criteria: string[] | null } | null
 }
 
 type Override = {
@@ -74,7 +74,8 @@ ${themeBrief}
 ${examplesBlock}
 
 ## Task
-Watch the video submission carefully and evaluate the staff member's roleplay performance against HUFT's official 24-point scoring rubric.
+Watch the video submission carefully and evaluate the staff member's roleplay performance against the criteria below.
+${submission.theme?.scoring_criteria ? `IMPORTANT: Only score these criteria: ${submission.theme.scoring_criteria.join(', ')}. For all other criteria set score to 0 and feedback to "Not assessed for this theme."` : 'Score all criteria below.'}
 
 ## Required criteria (total maximum = 24 points)
 
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
     // ── 1. Fetch submission ───────────────────────────────────────────────────
     const { data: sub, error: subErr } = await supabase
       .from('roleplay_submissions')
-      .select('*, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name, has_spa), theme:themes!roleplay_submissions_theme_id_fkey(title, brief_text)')
+      .select('*, staff:staff!roleplay_submissions_staff_id_fkey(name), store:stores!roleplay_submissions_store_id_fkey(name, has_spa), theme:themes!roleplay_submissions_theme_id_fkey(title, brief_text, scoring_criteria)')
       .eq('id', submission_id)
       .single()
     if (subErr || !sub) return jsonError(`Submission not found: ${subErr?.message}`, 404)
