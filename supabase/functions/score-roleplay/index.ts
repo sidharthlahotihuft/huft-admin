@@ -41,6 +41,24 @@ type Override = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const ALL_CRITERIA = [
+  { dimension: 'First Impression',             max: 5, is_bonus: false, rubric: 'Grooming, hygiene, body language, attitude, energy. 5 = excellent across all; deduct 1 per noticeable shortfall.' },
+  { dimension: 'Customer Welcome',             max: 3, is_bonus: false, rubric: 'Did the staff greet the customer, welcome them to the store, and introduce themselves by name? 1 point per element present.' },
+  { dimension: 'Price Perception',             max: 2, is_bonus: false, rubric: 'Did the staff use keywords that create positive price perception? 2 = clearly communicated, 1 = partial, 0 = absent.' },
+  { dimension: 'Pet Details',                  max: 4, is_bonus: false, rubric: "Did the staff collect the pet's breed, age, name, and weight? 1 point per detail collected." },
+  { dimension: 'Product & Breed Knowledge',    max: 1, is_bonus: false, rubric: 'Did the staff demonstrate accurate product or breed-specific knowledge? 1 = yes, 0 = no.' },
+  { dimension: 'Product Demonstration',        max: 2, is_bonus: false, rubric: 'Did the staff physically pick up and show a product while explaining its USPs? 2 = full demo, 1 = showed without USPs, 0 = absent.' },
+  { dimension: 'Offers Communication',         max: 1, is_bonus: false, rubric: 'Did the staff proactively inform the customer about current offers? 1 = yes, 0 = no.' },
+  { dimension: 'Cross Sell / Upsell',          max: 1, is_bonus: false, rubric: 'Did the staff use SWF questioning to cross-sell or upsell? 1 = yes, 0 = no.' },
+  { dimension: 'Query Handling',               max: 1, is_bonus: false, rubric: 'Did the staff address all customer questions effectively? 1 = yes, 0 = no.' },
+  { dimension: 'Product Suggestion',           max: 1, is_bonus: false, rubric: 'Did the staff suggest a specific product after understanding needs? 1 = yes, 0 = no.' },
+  { dimension: 'Impulse Products',             max: 1, is_bonus: false, rubric: 'Did the staff suggest impulse products at checkout? 1 = yes, 0 = no.' },
+  { dimension: 'Customer Data Capture',        max: 1, is_bonus: false, rubric: 'Did the staff update pet details at billing? 1 = yes, 0 = no.' },
+  { dimension: 'Bag Handover & Google Review', max: 1, is_bonus: false, rubric: 'Did the staff thank the customer and mention Google review? 1 = yes, 0 = no.' },
+  { dimension: 'Shopping Basket',              max: 1, is_bonus: true,  rubric: 'Did the staff hand a shopping basket to the customer? 1 = yes, 0 = no.' },
+  { dimension: 'Spa Introduction',             max: 1, is_bonus: true,  rubric: null }, // set dynamically
+]
+
 function buildPrompt(
   submission: Submission,
   overrides: Override[],
@@ -81,28 +99,38 @@ For every other criterion NOT in this list, you MUST set score = 0 and feedback 
 ## Task
 Watch the video submission carefully and evaluate the staff member's roleplay performance against the criteria below.
 
-## Required criteria (total maximum = 24 points)
-
-Score each as an integer from 0 up to its maximum. Award full marks only when the behaviour is clearly demonstrated; partial marks for partial execution.
-
-1. **First Impression** (max 5) — Grooming, hygiene, body language, attitude, energy. 5 = excellent across all; deduct 1 per noticeable shortfall.
-2. **Customer Welcome** (max 3) — Did the staff greet the customer, welcome them to the store, and introduce themselves by name? 1 point per element present.
-3. **Price Perception** (max 2) — Did the staff use keywords that create positive price perception (offers, discounts, variety, price points, value)? 2 = clearly communicated, 1 = partial, 0 = absent.
-4. **Pet Details** (max 4) — Did the staff collect the pet's breed, age, name, and weight? 1 point per detail collected.
-5. **Product & Breed Knowledge** (max 1) — Did the staff demonstrate accurate product or breed-specific knowledge relevant to the customer's pet? 1 = yes, 0 = no.
-6. **Product Demonstration** (max 2) — Did the staff physically pick up and show a product while explaining its USPs? 2 = full demo with USPs, 1 = showed product without USPs, 0 = absent.
-7. **Offers Communication** (max 1) — Did the staff proactively inform the customer about current ongoing offers? 1 = yes, 0 = no.
-8. **Cross Sell / Upsell** (max 1) — Did the staff use the SWF (See–Want–Feel) questioning technique to cross-sell or upsell? 1 = yes, 0 = no.
-9. **Query Handling** (max 1) — Did the staff address all customer questions or concerns effectively? 1 = yes, 0 = no.
-10. **Product Suggestion** (max 1) — Did the staff suggest a specific product after understanding the customer's needs through questioning? 1 = yes, 0 = no.
-11. **Impulse Products** (max 1) — Did the staff suggest small/impulse products at the checkout stage? 1 = yes, 0 = no.
-12. **Customer Data Capture** (max 1) — Did the staff update the customer's pet details at billing? 1 = yes, 0 = no.
-13. **Bag Handover & Google Review** (max 1) — Did the staff thank the customer and mention or request a Google review? 1 = yes, 0 = no.
-
-## Bonus criteria (DO NOT include in the 24-point required total)
-
-14. **Shopping Basket** (max 1) — Did the staff hand a shopping basket to the customer? 1 = yes, 0 = no.
-15. **Spa Introduction** (max 1) — ${spaInstruction} 1 = yes, 0 = no/N/A.
+${(() => {
+  const activeCriteria = submission.theme?.scoring_criteria
+  const criteriaList = [
+    { d: "First Impression", max: 5, bonus: false, r: "Grooming, hygiene, body language, attitude, energy. 5=excellent; deduct 1 per shortfall." },
+    { d: "Customer Welcome", max: 3, bonus: false, r: "Greet customer, welcome to store, introduce by name. 1 point each." },
+    { d: "Price Perception", max: 2, bonus: false, r: "Keywords creating positive price perception. 2=clear, 1=partial, 0=absent." },
+    { d: "Pet Details", max: 4, bonus: false, r: "Collect pet breed, age, name, weight. 1 point per detail." },
+    { d: "Product & Breed Knowledge", max: 1, bonus: false, r: "Accurate product/breed knowledge. 1=yes, 0=no." },
+    { d: "Product Demonstration", max: 2, bonus: false, r: "Physically show product with USPs. 2=full, 1=no USPs, 0=absent." },
+    { d: "Offers Communication", max: 1, bonus: false, r: "Proactively mention current offers. 1=yes, 0=no." },
+    { d: "Cross Sell / Upsell", max: 1, bonus: false, r: "SWF questioning for cross-sell/upsell. 1=yes, 0=no." },
+    { d: "Query Handling", max: 1, bonus: false, r: "Address all customer questions. 1=yes, 0=no." },
+    { d: "Product Suggestion", max: 1, bonus: false, r: "Suggest specific product after understanding needs. 1=yes, 0=no." },
+    { d: "Impulse Products", max: 1, bonus: false, r: "Suggest impulse products at checkout. 1=yes, 0=no." },
+    { d: "Customer Data Capture", max: 1, bonus: false, r: "Update pet details at billing. 1=yes, 0=no." },
+    { d: "Bag Handover & Google Review", max: 1, bonus: false, r: "Thank customer and mention Google review. 1=yes, 0=no." },
+    { d: "Shopping Basket", max: 1, bonus: true, r: "Hand shopping basket to customer. 1=yes, 0=no." },
+    { d: "Spa Introduction", max: 1, bonus: true, r: spaInstruction + " 1=yes, 0=no/N/A." },
+  ]
+  const active = activeCriteria ? criteriaList.filter(c => activeCriteria.includes(c.d)) : criteriaList
+  const inactive = activeCriteria ? criteriaList.filter(c => !activeCriteria.includes(c.d)) : []
+  const reqMax = active.filter(c => !c.bonus).reduce((s, c) => s + c.max, 0)
+  let out = `## Active scoring criteria (max ${reqMax} required points)\n`
+  if (inactive.length) out += `INACTIVE (score=0, feedback="Not assessed for this theme."): ${inactive.map(c=>c.d).join(", ")}\n\n`
+  out += "### Score ONLY these criteria:\n"
+  active.filter(c=>!c.bonus).forEach((c,i) => { out += `${i+1}. **${c.d}** (max ${c.max}) — ${c.r}\n` })
+  if (active.some(c=>c.bonus)) {
+    out += "\n### Bonus (not in required total):\n"
+    active.filter(c=>c.bonus).forEach((c,i) => { out += `${i+1}. **${c.d}** (max ${c.max}) — ${c.r}\n` })
+  }
+  return out
+})()}
 
 ## IMPORTANT — validity check
 Before scoring, determine whether this is a valid HUFT retail roleplay video. A valid video must show a staff member interacting with or simulating a customer interaction in a retail context. If the video does NOT show a customer interaction (e.g. it shows only animals, random footage, personal videos, or has no human speaking), respond with this exact JSON instead of scoring:
