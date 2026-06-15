@@ -302,7 +302,19 @@ Deno.serve(async (req) => {
 
     aiScore.required_score = requiredScore
     aiScore.bonus_score    = bonusScore
-    aiScore.overall        = Math.round((requiredScore / 24) * 100)
+    // Use active criteria max for overall — if scoring_criteria set, sum only those maxes
+    const ALL_MAX: Record<string, number> = {
+      'First Impression': 5, 'Customer Welcome': 3, 'Price Perception': 2,
+      'Pet Details': 4, 'Product & Breed Knowledge': 1, 'Product Demonstration': 2,
+      'Offers Communication': 1, 'Cross Sell / Upsell': 1, 'Query Handling': 1,
+      'Product Suggestion': 1, 'Impulse Products': 1, 'Customer Data Capture': 1,
+      'Bag Handover & Google Review': 1,
+    }
+    const activeCriteria = submission.theme?.scoring_criteria
+    const activeMax = activeCriteria
+      ? activeCriteria.reduce((s: number, d: string) => s + (ALL_MAX[d] ?? 0), 0)
+      : 24
+    aiScore.overall = Math.round((requiredScore / (activeMax || 24)) * 100)
 
     // ── 6. Persist score ──────────────────────────────────────────────────────
     const { error: updateErr } = await supabase
