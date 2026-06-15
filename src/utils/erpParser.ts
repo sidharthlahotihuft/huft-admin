@@ -60,6 +60,9 @@ const WEIGHT_DEFAULTS: Record<'dry_food' | 'wet_food' | 'default', Array<{ maxKg
     { maxKg: 15,       days: 90  },
     { maxKg: Infinity, days: 120 },
   ],
+  spa_grooming: [
+    { maxKg: Infinity, days: 21 },
+  ],
 }
 
 // ─── Weight helpers ───────────────────────────────────────────────────────────
@@ -217,16 +220,18 @@ function parseProductCell(cell: unknown): ProductInfo | null {
 
 // ─── Product-type inference ───────────────────────────────────────────────────
 
-function inferProductType(name: string): 'dry_food' | 'wet_food' | null {
+function inferProductType(name: string): 'dry_food' | 'wet_food' | 'spa_grooming' | null {
   const n = name.toLowerCase()
   if (/\b(wet|pouch|gravy|jelly|mousse|p[aâ]te|loaf|can|tray|tin)\b/.test(n)) return 'wet_food'
   if (/\b(dry|kibble|pellet|biscuit|crunch|bite)\b/.test(n)) return 'dry_food'
+  if (/\b(spa|groom|bath|trim|nail|shampoo|conditioner|styling|haircut|deshed)\b/.test(n)) return 'spa_grooming'
   return null
 }
 
 // ─── Replenishment rule matching ──────────────────────────────────────────────
 
-function getDefaultDays(weightKg: number | null, productType: 'dry_food' | 'wet_food' | null): number {
+function getDefaultDays(weightKg: number | null, productType: 'dry_food' | 'wet_food' | 'spa_grooming' | null): number {
+  if (productType === 'spa_grooming') return 21
   if (weightKg === null) return 30
   const bands = WEIGHT_DEFAULTS[productType ?? 'default']
   for (const r of bands) {
@@ -237,7 +242,7 @@ function getDefaultDays(weightKg: number | null, productType: 'dry_food' | 'wet_
 
 function findReplenishmentDays(
   weightKg: number | null,
-  productType: 'dry_food' | 'wet_food' | null,
+  productType: 'dry_food' | 'wet_food' | 'spa_grooming' | null,
   storeId: string,
   rules: ReplenishmentRule[],
 ): number {
@@ -509,16 +514,18 @@ interface FlatHeader {
   product:  number
   qty:      number
   dateOrMonth: number   // "Date" or "Month" column
+  storeName:   number   // "Store Name" column (-1 if absent)
   isDaily:  boolean     // true → individual dates; false → "Month YYYY" values
 }
 
 const FLAT_COL_ALIASES: Record<keyof Omit<FlatHeader, 'isDaily'>, string[]> = {
   phone:       ['customer phone', 'phone', 'mobile', 'customer mobile'],
   name:        ['customer name', 'name', 'customer'],
-  barcode:     ['product barcode', 'barcode', 'sku', 'product sku', 'item code'],
+  barcode:     ['product barcode', 'barcode', 'sku', 'product sku', 'item code', 'itemcode'],
   product:     ['product name', 'product', 'item name', 'item'],
   qty:         ['product quantity', 'quantity', 'qty'],
   dateOrMonth: ['date', 'month', 'transaction date', 'sale date', 'purchase date'],
+  storeName:   ['store name', 'store', 'branch', 'location', 'store code'],
 }
 
 function detectFlatHeader(rows: unknown[][]): (FlatHeader & { headerIdx: number }) | null {
@@ -548,6 +555,7 @@ function detectFlatHeader(rows: unknown[][]): (FlatHeader & { headerIdx: number 
       product:     colIdx(FLAT_COL_ALIASES.product),
       qty:         colIdx(FLAT_COL_ALIASES.qty),
       dateOrMonth: dateColIdx,
+      storeName:   colIdx(FLAT_COL_ALIASES.storeName ?? []),
       isDaily,
     }
   }
@@ -702,6 +710,97 @@ function processSheet(
  * Parse a single store's ERP data (CSV string or SheetJS sheet_to_json output).
  * Handles both legacy wide format and new flat format automatically.
  */
+/**
+ * Deduplicate tasks cross-store: for each customer phone + product,
+ * keep only the task for the store with the most recent purchase date.
+ * Returns tasks with a `transferred_from_store` note where applicable.
+ */
+export function deduplicateCrossStore(
+  allTasks: Partial<Task>[],
+  storeNameMap: Record<string, string>, // storeId -> storeName
+): Partial<Task>[] {
+  // Group by phone + product_sku
+  const groups = new Map<string, Partial<Task>[]>()
+  for (const t of allTasks) {
+    const key = `${t.customer_phone ?? ''}::${t.product_sku ?? t.product_name ?? ''}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(t)
+  }
+  const result: Partial<Task>[] = []
+  for (const tasks of groups.values()) {
+    if (tasks.length === 1) { result.push(tasks[0]); continue }
+    // Find the task with the most recent last_purchase_date
+    tasks.sort((a, b) => {
+      const da = a.last_purchase_date ? new Date(a.last_purchase_date).getTime() : 0
+      const db = b.last_purchase_date ? new Date(b.last_purchase_date).getTime() : 0
+      return db - da
+    })
+    const winner = tasks[0]
+    const otherStores = tasks.slice(1).map((t) => storeNameMap[t.store_id ?? ''] ?? t.store_id ?? 'another store')
+    if (otherStores.length > 0) {
+      winner.notes = `Customer also visited: ${otherStores.join(', ')}`
+    }
+    result.push(winner)
+  }
+  return result
+}
+
+/**
+ * Parse a bulk single-sheet file where one column contains the Store Name.
+ * Maps store names to storeIds using storeMap.
+ */
+export const parseBulkSheet = async (
+  file: File,
+  storeMap: Record<string, string>, // storeName (lowercase) -> storeId
+  storeNameById: Record<string, string>, // storeId -> storeName
+  rules: ReplenishmentRule[],
+): Promise<Record<string, Partial<Task>[]>> => {
+  const XLSX = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false }) as unknown[][]
+
+  const header = detectFlatHeader(rows)
+  if (!header || header.storeName < 0) {
+    throw new Error('No Store Name column found. Please add a "Store Name" column to your file.')
+  }
+
+  // Group rows by store
+  const storeRows = new Map<string, unknown[][]>()
+  storeRows.set('__header__', [rows[header.headerIdx]])
+  for (let i = header.headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i]
+    const rawStore = String(row[header.storeName] ?? '').trim()
+    if (!rawStore) continue
+    const storeId = storeMap[rawStore.toLowerCase()]
+    if (!storeId) continue
+    if (!storeRows.has(storeId)) storeRows.set(storeId, [rows[header.headerIdx]])
+    storeRows.get(storeId)!.push(row)
+  }
+
+  // Parse each store's rows
+  const byStore: Record<string, Partial<Task>[]> = {}
+  for (const [storeId, storeRowData] of storeRows.entries()) {
+    if (storeId === '__header__') continue
+    const tasks = processSheet(storeRowData, storeId, rules)
+    if (tasks.length > 0) byStore[storeId] = tasks
+  }
+
+  // Cross-store dedup
+  const allTasks = Object.values(byStore).flat()
+  const deduped = deduplicateCrossStore(allTasks, storeNameById)
+
+  // Re-group by store_id
+  const result: Record<string, Partial<Task>[]> = {}
+  for (const t of deduped) {
+    if (!t.store_id) continue
+    if (!result[t.store_id]) result[t.store_id] = []
+    result[t.store_id].push(t)
+  }
+  return result
+}
+
 export const parseERPData = (
   data: string | unknown[][],
   storeId: string,

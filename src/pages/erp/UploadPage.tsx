@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { parseERPData, parseMultiSheetExcel } from '@/utils/erpParser'
+import { parseERPData, parseBulkSheet, deduplicateCrossStore } from '@/utils/erpParser'
 import type { Task, ReplenishmentRule } from '@/types'
 import { toast } from 'sonner'
 
@@ -435,9 +435,15 @@ export default function ERPUploadPage() {
         }
         await computeUpsertCounts(singlePreview)
       } else {
-        const storeMap: Record<string, string> = {}
-        for (const m of sheetMatches) if (m.matched && m.storeId) storeMap[m.sheetName] = m.storeId
-        const tasksByStore = await parseMultiSheetExcel(file, storeMap, rules)
+        // Bulk single-sheet upload — uses Store Name column
+        const storeMapByName: Record<string, string> = {}
+        const storeNameById: Record<string, string> = {}
+        for (const s of stores) {
+          storeMapByName[s.name.toLowerCase()] = s.id
+          storeMapByName[s.name.toLowerCase().replace(/^huft[-\s]*/i, '').trim()] = s.id
+          storeNameById[s.id] = s.name
+        }
+        const tasksByStore = await parseBulkSheet(file, storeMapByName, storeNameById, rules)
         const previews: PreviewStore[] = Object.entries(tasksByStore)
           .filter(([, tasks]) => tasks.length > 0)
           .map(([storeId, tasks]) => ({
@@ -447,7 +453,7 @@ export default function ERPUploadPage() {
           }))
         setPreviewStores(previews)
         if (!previews.length) {
-          setParseError('No tasks generated from any matched sheet.')
+          setParseError('No tasks generated. Make sure your file has a "Store Name" column matching your store names.')
           setStep('detected')
           return
         }
