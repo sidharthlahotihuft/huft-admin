@@ -43,7 +43,7 @@ function excelSerialToDate(serial: number): Date | null {
 // ─── Internal types ─────────────────────────────────────────────────────────────
 
 type MonthCol     = { index: number; date: Date }
-type CustomerInfo = { phone: string; name: string }
+type CustomerInfo = { phone: string; name: string; petName?: string }
 type ProductInfo  = { sku: string; rawName: string; weightKg: number | null; weightRaw: string | null }
 
 // ─── Month name → 0-based index map ──────────────────────────────────────────
@@ -413,6 +413,7 @@ function buildTasksFromHistory(
   const base: Partial<Task> = {
     store_id:              storeId,
     customer_name:         customer.name,
+    pet_name:              customer.petName ?? null,
     customer_phone:        customer.phone,
     task_type:             taskType,
     priority,
@@ -469,6 +470,7 @@ function buildTasksLegacy(
   const base: Partial<Task> = {
     store_id:              storeId,
     customer_name:         customer.name,
+    pet_name:              customer.petName ?? null,
     customer_phone:        customer.phone,
     task_type:             taskType,
     priority,
@@ -535,17 +537,19 @@ interface FlatHeader {
   qty:      number
   dateOrMonth: number   // "Date" or "Month" column
   storeName:   number   // "Store Name" column (-1 if absent)
+  petName:     number   // "Pet Name" column (-1 if absent)
   isDaily:  boolean     // true → individual dates; false → "Month YYYY" values
 }
 
 const FLAT_COL_ALIASES: Record<keyof Omit<FlatHeader, 'isDaily'>, string[]> = {
-  phone:       ['customer phone', 'phone', 'mobile', 'customer mobile'],
-  name:        ['customer name', 'name', 'customer'],
-  barcode:     ['product barcode', 'barcode', 'sku', 'product sku', 'item code', 'itemcode'],
-  product:     ['product name', 'product', 'item name', 'item'],
-  qty:         ['product quantity', 'quantity', 'qty'],
-  dateOrMonth: ['date', 'month', 'transaction date', 'sale date', 'purchase date'],
-  storeName:   ['store name', 'store', 'branch', 'location', 'store code'],
+  phone:       ['customer phone', 'phone', 'mobile', 'customer mobile', 'customer_phone', 'phone number'],
+  name:        ['customer name', 'name', 'customer', 'customer_name'],
+  barcode:     ['product barcode', 'barcode', 'sku', 'product sku', 'item code', 'itemcode', 'sku_code', 'product_barcode'],
+  product:     ['product name', 'product', 'item name', 'item', 'product_name'],
+  qty:         ['product quantity', 'quantity', 'qty', 'product_quantity'],
+  dateOrMonth: ['date', 'month', 'transaction date', 'sale date', 'purchase date', 'transaction_date', 'order date', 'order_date'],
+  storeName:   ['store name', 'store', 'branch', 'location', 'store code', 'store_name'],
+  petName:     ['pet name', 'pet_name', 'pet', 'animal name'],
 }
 
 function detectFlatHeader(rows: unknown[][]): (FlatHeader & { headerIdx: number }) | null {
@@ -576,6 +580,7 @@ function detectFlatHeader(rows: unknown[][]): (FlatHeader & { headerIdx: number 
       qty:         colIdx(FLAT_COL_ALIASES.qty),
       dateOrMonth: dateColIdx,
       storeName:   colIdx(FLAT_COL_ALIASES.storeName ?? []),
+      petName:     colIdx(FLAT_COL_ALIASES.petName ?? []),
       isDaily,
     }
   }
@@ -613,6 +618,7 @@ function processFlatSheet(
     const productRaw = String(row[header.product]  ?? '').trim()
     const qtyRaw     = row[header.qty]
     const dateRaw    = row[header.dateOrMonth]
+    const petNameRaw = header.petName >= 0 ? String(row[header.petName] ?? '').trim() : ''
 
     // Skip blank or legend rows
     if (!phoneRaw || !productRaw || !dateRaw) continue
@@ -635,7 +641,7 @@ function processFlatSheet(
 
     if (!existing) {
       agg.set(key, {
-        customer: { phone: phoneRaw, name: nameRaw },
+        customer: { phone: phoneRaw, name: nameRaw, petName: petNameRaw || undefined },
         product:  {
           sku:       barcodeRaw || productRaw.slice(0, 20),
           rawName:   productRaw,

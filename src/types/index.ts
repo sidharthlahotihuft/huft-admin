@@ -21,6 +21,7 @@ export type Task = {
   id: string;
   store_id: string | null;
   customer_name: string;
+  pet_name: string | null;
   customer_phone: string;
   task_type: 'reorder' | 'winback' | 'pattern_break' | 'checkin' | 'upsell' | 'high_value' | 'cart_growth';
   priority: 'high' | 'medium' | 'low';
