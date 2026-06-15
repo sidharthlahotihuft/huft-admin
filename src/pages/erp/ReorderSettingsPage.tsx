@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ProductType = 'dry_food' | 'wet_food'
+type ProductType = 'dry_food' | 'wet_food' | 'spa_grooming'
 
 type Rule = {
   id: string
@@ -55,6 +55,7 @@ type RuleFormData = {
 const PRODUCT_LABELS: Record<ProductType, string> = {
   dry_food: 'Dry Food',
   wet_food: 'Wet Food',
+  spa_grooming: 'Spa Services',
 }
 
 const BRAND_OPTIONS = {
@@ -336,6 +337,7 @@ function RuleDialog({
                 <SelectContent>
                   <SelectItem value="dry_food">Dry Food</SelectItem>
                   <SelectItem value="wet_food">Wet Food</SelectItem>
+                  <SelectItem value="spa_grooming">Spa Services</SelectItem>
                 </SelectContent>
               </Select>
             </div>
