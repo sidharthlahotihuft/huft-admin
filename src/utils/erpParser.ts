@@ -91,7 +91,7 @@ function parseMonthCell(cell: unknown): Date | null {
 
   if (typeof cell === 'number') {
     if (cell < 1000) return null
-    const d = new Date(1899, 11, 30 + Math.floor(cell as number))
+    const d = new Date(1899, 11, 30 + Math.floor(cell as number) + 1)
     // local date construction avoids UTC/IST timezone offset
     if (d.getFullYear() < 2000 || d.getFullYear() > 2035) return null
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -158,9 +158,9 @@ function parseDateCell(cell: unknown): Date | null {
   }
 
   if (typeof cell === 'number') {
-    // Excel serial date — use local date to avoid UTC/IST offset issues
+    // Excel serial date — add 1 to correct for SheetJS raw:true Lotus 1-2-3 leap year offset
     if (cell < 1000) return null
-    const totalDays = Math.floor(cell)
+    const totalDays = Math.floor(cell) + 1
     const epoch = new Date(1899, 11, 30) // local midnight
     const d = new Date(epoch.getFullYear(), epoch.getMonth(), epoch.getDate() + totalDays)
     return d.getFullYear() >= 2000 ? d : null
