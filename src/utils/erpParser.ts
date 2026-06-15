@@ -189,6 +189,12 @@ function parseDateCell(cell: unknown): Date | null {
     const [, d, m, y] = mDMY
     return new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
   }
+  // DD/MM/YY HH:MM or DD/MM/YYYY HH:MM (Odoo India export format e.g. "10/06/26 0:00")
+  const mOdoo = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+\d{1,2}:\d{2})?$/)
+  if (mOdoo) {
+    const yr = mOdoo[3].length === 2 ? 2000 + parseInt(mOdoo[3]) : parseInt(mOdoo[3])
+    return new Date(yr, parseInt(mOdoo[2]) - 1, parseInt(mOdoo[1]))
+  }
 
   // DD-Mon-YYYY or DD-Mon-YY
   const mDMonY = s.match(/^(\d{1,2})[-\s]([A-Za-z]{3})[-\s](\d{2,4})$/)
