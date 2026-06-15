@@ -719,28 +719,40 @@ export function deduplicateCrossStore(
   allTasks: Partial<Task>[],
   storeNameMap: Record<string, string>, // storeId -> storeName
 ): Partial<Task>[] {
-  // Group by phone + product_sku
-  const groups = new Map<string, Partial<Task>[]>()
+  // Group ALL tasks by customer phone — phone is the unique customer identifier
+  const byPhone = new Map<string, Partial<Task>[]>()
   for (const t of allTasks) {
-    const key = `${t.customer_phone ?? ''}::${t.product_sku ?? t.product_name ?? ''}`
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(t)
+    const phone = t.customer_phone ?? ''
+    if (!byPhone.has(phone)) byPhone.set(phone, [])
+    byPhone.get(phone)!.push(t)
   }
+
   const result: Partial<Task>[] = []
-  for (const tasks of groups.values()) {
-    if (tasks.length === 1) { result.push(tasks[0]); continue }
-    // Find the task with the most recent last_purchase_date
-    tasks.sort((a, b) => {
-      const da = a.last_purchase_date ? new Date(a.last_purchase_date).getTime() : 0
-      const db = b.last_purchase_date ? new Date(b.last_purchase_date).getTime() : 0
-      return db - da
+  for (const [, tasks] of byPhone.entries()) {
+    // Find the store with the most recent purchase across ALL products for this customer
+    const mostRecentTask = tasks.reduce((best, t) => {
+      const da = best.last_purchase_date ? new Date(best.last_purchase_date).getTime() : 0
+      const db = t.last_purchase_date   ? new Date(t.last_purchase_date).getTime()   : 0
+      return db > da ? t : best
     })
-    const winner = tasks[0]
-    const otherStores = tasks.slice(1).map((t) => storeNameMap[t.store_id ?? ''] ?? t.store_id ?? 'another store')
-    if (otherStores.length > 0) {
-      winner.notes = `Customer also visited: ${otherStores.join(', ')}`
+    const winnerStoreId = mostRecentTask.store_id
+
+    // All tasks for this customer go to the winner store
+    const otherStores = new Set(
+      tasks.filter((t) => t.store_id !== winnerStoreId)
+           .map((t) => storeNameMap[t.store_id ?? ''] ?? t.store_id ?? 'another store')
+    )
+    const crossStoreNote = otherStores.size > 0
+      ? `Customer also visited: ${[...otherStores].join(', ')}`
+      : undefined
+
+    for (const t of tasks) {
+      result.push({
+        ...t,
+        store_id: winnerStoreId,
+        notes: crossStoreNote ?? t.notes,
+      })
     }
-    result.push(winner)
   }
   return result
 }
