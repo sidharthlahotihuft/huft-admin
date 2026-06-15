@@ -23,7 +23,24 @@
 
 import type { Task, ReplenishmentRule } from '@/types'
 
-// ─── Internal types ───────────────────────────────────────────────────────────
+// ─── Excel serial date converter ─────────────────────────────────────────────
+/**
+ * Convert an Excel serial date number to a local JS Date.
+ * Correctly handles the Lotus 1-2-3 leap year bug (Excel wrongly treats
+ * 1900 as a leap year, so serial 60 = phantom Feb 29 1900).
+ * Serials > 60 are off by 1 relative to the true proleptic Gregorian calendar,
+ * so we subtract 1 before computing. This matches what XLSX.SSF.parse_date_code does.
+ */
+function excelSerialToDate(serial: number): Date | null {
+  if (serial < 1 || serial > 2958465) return null // 1 Jan 1900 to 31 Dec 9999
+  // Serials > 60: subtract 1 to skip the phantom Feb 29 1900
+  const adjusted = serial > 60 ? serial - 1 : serial
+  // Excel epoch: Jan 0 1900 = Dec 31 1899
+  const d = new Date(1900, 0, adjusted)
+  return isNaN(d.getTime()) ? null : d
+}
+
+// ─── Internal types ─────────────────────────────────────────────────────────────
 
 type MonthCol     = { index: number; date: Date }
 type CustomerInfo = { phone: string; name: string }
@@ -91,7 +108,7 @@ function parseMonthCell(cell: unknown): Date | null {
 
   if (typeof cell === 'number') {
     if (cell < 1000) return null
-    const d = new Date(1899, 11, 30 + Math.floor(cell as number) + 1)
+    const d = excelSerialToDate(cell as number)
     // local date construction avoids UTC/IST timezone offset
     if (d.getFullYear() < 2000 || d.getFullYear() > 2035) return null
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -158,12 +175,10 @@ function parseDateCell(cell: unknown): Date | null {
   }
 
   if (typeof cell === 'number') {
-    // Excel serial date — add 1 to correct for SheetJS raw:true Lotus 1-2-3 leap year offset
+    // Use proper serial→date conversion (handles Lotus 1900 leap year bug)
     if (cell < 1000) return null
-    const totalDays = Math.floor(cell) + 1
-    const epoch = new Date(1899, 11, 30) // local midnight
-    const d = new Date(epoch.getFullYear(), epoch.getMonth(), epoch.getDate() + totalDays)
-    return d.getFullYear() >= 2000 ? d : null
+    const d = excelSerialToDate(cell)
+    return d && d.getFullYear() >= 2000 ? d : null
   }
 
   const s = String(cell).trim()
