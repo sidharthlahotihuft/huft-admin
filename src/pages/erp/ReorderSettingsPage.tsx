@@ -117,6 +117,7 @@ function fmtWeight(min: number, max: number) {
   return `${min} - ${max} kg`
 }
 
+function validateForm(f: RuleFormData): string | null {
   const isSpa = f.product_type === 'spa_grooming'
   if (!isSpa && (!f.weight_min || isNaN(+f.weight_min)))   return 'Weight min is required'
   if (!isSpa && (!f.weight_max || isNaN(+f.weight_max)))   return 'Weight max is required'
