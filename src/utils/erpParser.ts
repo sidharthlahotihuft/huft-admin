@@ -151,7 +151,11 @@ function findMonthCols(row: unknown[]): MonthCol[] {
 function parseDateCell(cell: unknown): Date | null {
   if (!cell && cell !== 0) return null
 
-  if (cell instanceof Date) return isNaN(cell.getTime()) ? null : cell
+  if (cell instanceof Date) {
+    if (isNaN(cell.getTime())) return null
+    // Normalize UTC date to local date to avoid IST offset (UTC+5:30 shows previous day)
+    return new Date(cell.getFullYear(), cell.getMonth(), cell.getDate())
+  }
 
   if (typeof cell === 'number') {
     // Excel serial date — use local date to avoid UTC/IST offset issues
