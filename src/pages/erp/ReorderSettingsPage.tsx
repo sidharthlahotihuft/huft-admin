@@ -29,8 +29,8 @@ type Rule = {
   id: string
   product_type: ProductType
   brand: string | null
-  weight_min_kg: number
-  weight_max_kg: number
+  weight_min_kg: number | null
+  weight_max_kg: number | null
   replenishment_days: number
   is_global: boolean
   store_id: string | null
@@ -117,10 +117,10 @@ function fmtWeight(min: number, max: number) {
   return `${min} - ${max} kg`
 }
 
-function validateForm(f: RuleFormData): string | null {
-  if (!f.weight_min || isNaN(+f.weight_min))    return 'Weight min is required'
-  if (!f.weight_max || isNaN(+f.weight_max))    return 'Weight max is required'
-  if (+f.weight_min >= +f.weight_max)            return 'Weight min must be less than max'
+  const isSpa = f.product_type === 'spa_grooming'
+  if (!isSpa && (!f.weight_min || isNaN(+f.weight_min)))   return 'Weight min is required'
+  if (!isSpa && (!f.weight_max || isNaN(+f.weight_max)))   return 'Weight max is required'
+  if (!isSpa && (+f.weight_min >= +f.weight_max))           return 'Weight min must be less than max'
   if (!f.replenishment_days || isNaN(+f.replenishment_days)) return 'Replenishment days is required'
   if (+f.replenishment_days < 1)                 return 'Replenishment days must be at least 1'
   return null
@@ -509,8 +509,8 @@ export default function ReorderSettingsPage() {
       .update({
         product_type: editForm.product_type,
         brand: resolveBrand(editForm),
-        weight_min_kg: +editForm.weight_min,
-        weight_max_kg: +editForm.weight_max,
+        weight_min_kg: editForm.product_type === 'spa_grooming' ? null : +editForm.weight_min,
+        weight_max_kg: editForm.product_type === 'spa_grooming' ? null : +editForm.weight_max,
         replenishment_days: +editForm.replenishment_days,
         updated_at: new Date().toISOString(),
         created_by: adminName,
@@ -544,8 +544,8 @@ export default function ReorderSettingsPage() {
     const { error } = await supabase.from('replenishment_rules').insert({
       product_type: form.product_type,
       brand: resolveBrand(form),
-      weight_min_kg: +form.weight_min,
-      weight_max_kg: +form.weight_max,
+      weight_min_kg: form.product_type === 'spa_grooming' ? null : +form.weight_min,
+      weight_max_kg: form.product_type === 'spa_grooming' ? null : +form.weight_max,
       replenishment_days: +form.replenishment_days,
       is_global: isGlobal,
       store_id: storeId,
