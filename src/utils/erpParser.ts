@@ -730,12 +730,21 @@ export function deduplicateCrossStore(
   const result: Partial<Task>[] = []
   for (const [, tasks] of byPhone.entries()) {
     // Find the store with the most recent purchase across ALL products for this customer
-    const mostRecentTask = tasks.reduce((best, t) => {
-      const da = best.last_purchase_date ? new Date(best.last_purchase_date).getTime() : 0
-      const db = t.last_purchase_date   ? new Date(t.last_purchase_date).getTime()   : 0
-      return db > da ? t : best
-    })
-    const winnerStoreId = mostRecentTask.store_id
+    // Use store_id directly since tasks are already grouped by store
+    const storeLatest = new Map<string, number>()
+    for (const t of tasks) {
+      const sid = t.store_id ?? ''
+      const d = t.last_purchase_date ? new Date(t.last_purchase_date).getTime() : 0
+      if (!storeLatest.has(sid) || d > storeLatest.get(sid)!) {
+        storeLatest.set(sid, d)
+      }
+    }
+    // Winner store = store with globally latest purchase date
+    let winnerStoreId = ''
+    let winnerDate = 0
+    for (const [sid, d] of storeLatest.entries()) {
+      if (d > winnerDate) { winnerDate = d; winnerStoreId = sid }
+    }
 
     // All tasks for this customer go to the winner store
     const otherStores = new Set(
